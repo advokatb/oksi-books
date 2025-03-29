@@ -126,12 +126,21 @@
                 </div>
                 <p id="challenge-percent" class="text-center text-gray-500 text-sm mt-2"></p>
             </div>
-            <!-- Skipping Книжные рекорды due to missing Number of Pages -->
+            <!-- Block: Самая длинная и короткая книга -->
+            <div class="bg-white p-6 rounded-lg shadow-inner fade-in">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Книжные рекорды</h2>
+                <div id="book-records">
+                    <p class="text-gray-600 text-sm mb-2"><strong>Самая длинная книга:</strong> <span id="longest-book"></span></p>
+                    <p class="text-gray-600 text-sm"><strong>Самая короткая книга:</strong> <span id="shortest-book"></span></p>
+                </div>
+            </div>
+
+            <!-- Block: Циклов прочитано всего и В среднем прочитано в месяц -->
             <div class="bg-white p-6 rounded-lg shadow-inner fade-in">
                 <h2 class="text-2xl font-semibold text-gray-700 mb-4">Статистика чтения</h2>
                 <div id="reading-stats">
                     <p class="text-gray-600 text-sm mb-2"><strong>Циклов прочитано всего:</strong> <span id="total-series"></span></p>
-                    <!-- Skipping average books per month due to missing Date Added -->
+                    <p class="text-gray-600 text-sm"><strong>В среднем прочитано в месяц:</strong> <span id="average-books-per-month"></span></p>
                 </div>
             </div>
         </div>
