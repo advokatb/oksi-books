@@ -222,72 +222,90 @@ class BookCollection {
         return div;
     }
 
-    async renderTimelineChart(timelineData = null) {
-        let seriesData, labels;
-        if (timelineData) {
-            seriesData = timelineData.map(item => item.Books);
-            labels = timelineData.map(item => {
-                const [year, month] = item.Date.split('-');
-                return `${month}.${year}`;
-            });
-        } else {
-            const timeline = {};
-            for (const book of this.allBooks) {
-                if (book['Exclusive Shelf'] === 'read' && book['Date Read']) {
-                    const [year, month] = book['Date Read'].split('-');
-                    const key = `${year}-${month}`;
-                    timeline[key] = (timeline[key] || 0) + 1;
-                }
-            }
-            const sortedKeys = Object.keys(timeline).sort();
-            seriesData = sortedKeys.map(key => timeline[key]);
-            labels = sortedKeys.map(key => {
-                const [year, month] = key.split('-');
-                return `${month}.${year}`;
-            });
-        }
-
-        const options = {
-            chart: {
-                type: 'bar',
-                height: 200,
-                toolbar: { show: false }
-            },
-            series: [{
-                name: 'Книги',
-                data: seriesData
-            }],
-            xaxis: {
-                categories: labels,
-                title: {
-                    text: 'Месяц',
-                    style: { fontSize: '14px', fontWeight: 600, color: '#374151' }
-                },
-                labels: {
-                    style: { fontSize: '12px', colors: Array(labels.length).fill('#4B5563') }
-                }
-            },
-            yaxis: {
-                title: {
-                    text: 'Книги',
-                    style: { fontSize: '14px', fontWeight: 600, color: '#374151' }
-                },
-                labels: {
-                    style: { fontSize: '12px', colors: '#4B5563' }
-                }
-            },
-            plotOptions: {
-                bar: { horizontal: false, columnWidth: '70%' }
-            },
-            dataLabels: { enabled: false },
-            colors: ['#2563eb'],
-            tooltip: {
-                y: { formatter: val => `${val} книг${val > 1 ? 'и' : 'а'}` }
+    createChartPopup(popupId, chartContainer, titleText, books) {
+        // Remove any existing popup with the given ID
+        const removePopup = () => {
+            const existingPopup = document.getElementById(popupId);
+            if (existingPopup) existingPopup.remove();
+        };
+        removePopup();
+    
+        // Create popup
+        const popup = document.createElement('div');
+        popup.id = popupId;
+        popup.style.position = 'absolute';
+        popup.style.bottom = '210px';
+        popup.style.left = '50%';
+        popup.style.transform = 'translateX(-50%)';
+        popup.style.zIndex = '50';
+        popup.style.backgroundColor = '#ffffff';
+        popup.style.border = '1px solid #ccc';
+        popup.style.borderRadius = '8px';
+        popup.style.padding = '10px';
+        popup.style.boxShadow = '0 4px 10px rgba(0,0,0,0.3)';
+        popup.style.maxHeight = '250px';
+        popup.style.width = '90%';
+        popup.style.overflowY = 'auto';
+    
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.top = '5px';
+        closeBtn.style.right = '5px';
+        closeBtn.style.background = 'none';
+        closeBtn.style.border = 'none';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.fontSize = '16px';
+        closeBtn.onclick = removePopup;
+    
+        const title = document.createElement('h3');
+        title.textContent = titleText;
+        title.style.fontWeight = 'bold';
+        title.style.marginBottom = '8px';
+        title.style.textAlign = 'center';
+    
+        popup.appendChild(closeBtn);
+        popup.appendChild(title);
+    
+        books.forEach(book => {
+            const bookDiv = document.createElement('div');
+            bookDiv.style.display = 'flex';
+            bookDiv.style.alignItems = 'center';
+            bookDiv.style.marginBottom = '6px';
+    
+            const img = document.createElement('img');
+            img.src = book.getCoverUrl();
+            img.style.width = '30px';
+            img.style.height = '45px';
+            img.style.objectFit = 'cover';
+            img.style.borderRadius = '3px';
+            img.style.marginRight = '8px';
+    
+            const bookInfo = document.createElement('div');
+            bookInfo.innerHTML = `
+                <p style="font-size: 13px; font-weight: 500;">
+                    <a href="${book.getLiveLibBookLink()}" target="_blank" style="color:#4F46E5;">${book.Title}</a>
+                </p>
+                <p style="font-size: 12px; color: #6B7280;">${book.Author}</p>
+            `;
+    
+            bookDiv.appendChild(img);
+            bookDiv.appendChild(bookInfo);
+            popup.appendChild(bookDiv);
+        });
+    
+        chartContainer.style.position = 'relative';
+        chartContainer.appendChild(popup);
+    
+        // Close popup when clicking outside
+        const outsideClickListener = (event) => {
+            const popup = document.getElementById(popupId);
+            if (popup && !popup.contains(event.target) && !chartContainer.contains(event.target)) {
+                removePopup();
+                document.removeEventListener('click', outsideClickListener);
             }
         };
-
-        const chart = new ApexCharts(document.querySelector('#timelineChart'), options);
-        chart.render();
+        document.addEventListener('click', outsideClickListener);
     }
 
     async renderRatingChart() {
@@ -297,35 +315,190 @@ class BookCollection {
                 ratingCounts[book['My Rating']] = (ratingCounts[book['My Rating']] || 0) + 1;
             }
         }
-
+    
         const seriesData = Object.values(ratingCounts);
         const labels = Object.keys(ratingCounts).map(rating => {
             const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
             return `${stars} (${ratingCounts[rating]})`;
         });
-
+    
+        const chartContainer = document.querySelector("#ratingChart");
+    
         const options = {
-            chart: { type: 'bar', height: 200, toolbar: { show: false } },
-            series: [{ name: 'Количество книг', data: seriesData }],
+            chart: {
+                type: 'bar',
+                height: 200,
+                toolbar: { show: false },
+                events: {
+                    dataPointSelection: async (event, chartContext, config) => {
+                        const rating = parseInt(Object.keys(ratingCounts)[config.dataPointIndex], 10);
+                        const filteredBooks = this.allBooks.filter(
+                            book => book['Exclusive Shelf'] === 'read' && book['My Rating'] === rating
+                        );
+    
+                        this.createChartPopup(
+                            'rating-popup',
+                            chartContainer,
+                            `Книги с рейтингом: ${rating}`,
+                            filteredBooks
+                        );
+                    }
+                }
+            },
+            series: [{
+                name: 'Количество книг',
+                data: seriesData
+            }],
             xaxis: {
                 categories: labels,
-                labels: { style: { fontSize: '12px', colors: Array(5).fill('#4B5563') } }
+                labels: {
+                    style: {
+                        fontSize: '12px',
+                        colors: Array(5).fill('#4B5563') // text-gray-600
+                    }
+                }
             },
             yaxis: {
-                title: { text: 'Количество книг', style: { fontSize: '14px', fontWeight: 600, color: '#374151' } },
-                labels: { style: { fontSize: '12px', colors: '#4B5563' } }
+                title: {
+                    text: 'Количество книг',
+                    style: {
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: '#374151' // text-gray-700
+                    }
+                },
+                labels: {
+                    style: {
+                        fontSize: '12px',
+                        colors: '#4B5563' // text-gray-600
+                    }
+                }
             },
-            plotOptions: { bar: { horizontal: false, columnWidth: '55%', endingShape: 'rounded' } },
+            plotOptions: {
+                bar: {
+                    horizontal: false,
+                    columnWidth: '55%',
+                    endingShape: 'rounded'
+                }
+            },
             dataLabels: {
                 enabled: true,
                 formatter: val => val > 0 ? val : '',
-                style: { fontSize: '12px', colors: ['#fff'] }
+                style: {
+                    fontSize: '12px',
+                    colors: ['#fff']
+                }
             },
-            colors: ['#4F46E5'],
-            tooltip: { y: { formatter: val => `${val} книг` } }
+            colors: ['#4F46E5'], // Indigo-600
+            tooltip: {
+                y: {
+                    formatter: val => `${val} книг`
+                }
+            }
         };
+    
+        const chart = new ApexCharts(chartContainer, options);
+        chart.render();
+    }
 
-        const chart = new ApexCharts(document.querySelector("#ratingChart"), options);
+    async renderTimelineChart() {
+        const timelineData = {};
+        for (const book of this.allBooks) {
+            if (book['Exclusive Shelf'] === 'read' && book['Date Read']) {
+                const [year, month] = book['Date Read'].split('-');
+                const key = `${year}-${month}`;
+                timelineData[key] = (timelineData[key] || 0) + 1;
+            }
+        }
+    
+        const sortedKeys = Object.keys(timelineData).sort();
+        const seriesData = sortedKeys.map(key => timelineData[key]);
+        const labels = sortedKeys.map(key => {
+            const [year, month] = key.split('-');
+            return `${month}.${year}`;
+        });
+    
+        const chartContainer = document.querySelector("#timelineChart");
+    
+        const options = {
+            chart: {
+                type: 'bar',
+                height: 200,
+                toolbar: { show: false },
+                events: {
+                    dataPointSelection: async (event, chartContext, config) => {
+                        const selectedMonth = sortedKeys[config.dataPointIndex]; // e.g., "2025-03"
+                        const filteredBooks = this.allBooks.filter(book => {
+                            if (book['Exclusive Shelf'] !== 'read' || !book['Date Read']) return false;
+                            const [year, month] = book['Date Read'].split('-');
+                            return `${year}-${month}` === selectedMonth;
+                        });
+    
+                        const [year, month] = selectedMonth.split('-');
+                        this.createChartPopup(
+                            'timeline-popup',
+                            chartContainer,
+                            `Книги за ${month}.${year}`,
+                            filteredBooks
+                        );
+                    }
+                }
+            },
+            series: [{
+                name: 'Книги',
+                data: seriesData
+            }],
+            xaxis: {
+                categories: labels,
+                title: {
+                    text: 'Месяц',
+                    style: {
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: '#374151'
+                    }
+                },
+                labels: {
+                    style: {
+                        fontSize: '12px',
+                        colors: Array(labels.length).fill('#4B5563')
+                    }
+                }
+            },
+            yaxis: {
+                title: {
+                    text: 'Книги',
+                    style: {
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: '#374151'
+                    }
+                },
+                labels: {
+                    style: {
+                        fontSize: '12px',
+                        colors: '#4B5563'
+                    }
+                }
+            },
+            plotOptions: {
+                bar: {
+                    horizontal: false,
+                    columnWidth: '70%'
+                }
+            },
+            dataLabels: {
+                enabled: false
+            },
+            colors: ['#2563eb'],
+            tooltip: {
+                y: {
+                    formatter: val => `${val} книг${val > 1 ? 'и' : 'а'}`
+                }
+            }
+        };
+    
+        const chart = new ApexCharts(chartContainer, options);
         chart.render();
     }
 
@@ -350,12 +523,6 @@ class BookCollection {
     
         const chartContainer = document.querySelector("#genreChart");
     
-        // Remove any existing popup
-        const removePopup = () => {
-            const existingPopup = document.getElementById('genre-popup');
-            if (existingPopup) existingPopup.remove();
-        };
-    
         const options = {
             chart: {
                 type: 'pie',
@@ -363,77 +530,15 @@ class BookCollection {
                 toolbar: { show: false },
                 events: {
                     dataPointSelection: async (event, chartContext, config) => {
-                        removePopup();
-    
                         const genre = labels[config.dataPointIndex];
                         const filteredBooks = this.allBooks.filter(book => book.Genres && book.Genres.includes(genre));
     
-                        // Create popup
-                        const popup = document.createElement('div');
-                        popup.id = 'genre-popup';
-                        popup.style.position = 'absolute';
-                        popup.style.bottom = '210px';
-                        popup.style.left = '50%';
-                        popup.style.transform = 'translateX(-50%)';
-                        popup.style.zIndex = '50';
-                        popup.style.backgroundColor = '#ffffff';
-                        popup.style.border = '1px solid #ccc';
-                        popup.style.borderRadius = '8px';
-                        popup.style.padding = '10px';
-                        popup.style.boxShadow = '0 4px 10px rgba(0,0,0,0.3)';
-                        popup.style.maxHeight = '250px';
-                        popup.style.width = '90%';
-                        popup.style.overflowY = 'auto';
-    
-                        const closeBtn = document.createElement('button');
-                        closeBtn.textContent = '✕';
-                        closeBtn.style.position = 'absolute';
-                        closeBtn.style.top = '5px';
-                        closeBtn.style.right = '5px';
-                        closeBtn.style.background = 'none';
-                        closeBtn.style.border = 'none';
-                        closeBtn.style.cursor = 'pointer';
-                        closeBtn.style.fontSize = '16px';
-                        closeBtn.onclick = removePopup;
-    
-                        const title = document.createElement('h3');
-                        title.textContent = `Книги жанра: ${genre}`;
-                        title.style.fontWeight = 'bold';
-                        title.style.marginBottom = '8px';
-                        title.style.textAlign = 'center';
-    
-                        popup.appendChild(closeBtn);
-                        popup.appendChild(title);
-    
-                        filteredBooks.forEach(book => {
-                            const bookDiv = document.createElement('div');
-                            bookDiv.style.display = 'flex';
-                            bookDiv.style.alignItems = 'center';
-                            bookDiv.style.marginBottom = '6px';
-    
-                            const img = document.createElement('img');
-                            img.src = book.getCoverUrl();
-                            img.style.width = '30px';
-                            img.style.height = '45px';
-                            img.style.objectFit = 'cover';
-                            img.style.borderRadius = '3px';
-                            img.style.marginRight = '8px';
-    
-                            const bookInfo = document.createElement('div');
-                            bookInfo.innerHTML = `
-                                <p style="font-size: 13px; font-weight: 500;">
-                                    <a href="${book.getLiveLibBookLink()}" target="_blank" style="color:#4F46E5;">${book.Title}</a>
-                                </p>
-                                <p style="font-size: 12px; color: #6B7280;">${book.Author}</p>
-                            `;
-    
-                            bookDiv.appendChild(img);
-                            bookDiv.appendChild(bookInfo);
-                            popup.appendChild(bookDiv);
-                        });
-    
-                        chartContainer.style.position = 'relative';
-                        chartContainer.appendChild(popup);
+                        this.createChartPopup(
+                            'genre-popup',
+                            chartContainer,
+                            `Книги жанра: ${genre}`,
+                            filteredBooks
+                        );
                     }
                 }
             },
@@ -455,14 +560,6 @@ class BookCollection {
     
         const chart = new ApexCharts(chartContainer, options);
         chart.render();
-    
-        // Close popup when clicking outside
-        document.addEventListener('click', function(event) {
-            const popup = document.getElementById('genre-popup');
-            if (popup && !popup.contains(event.target) && !chartContainer.contains(event.target)) {
-                removePopup();
-            }
-        });
     }
     
 }
