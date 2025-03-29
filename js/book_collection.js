@@ -222,7 +222,7 @@ class BookCollection {
         return div;
     }
 
-    createChartPopup(popupId, chartContainer, titleText, books) {
+    async createChartPopup(popupId, chartContainer, titleText, books) {
         // Remove any existing popup with the given ID
         const removePopup = () => {
             const existingPopup = document.getElementById(popupId);
@@ -233,68 +233,56 @@ class BookCollection {
         // Create popup
         const popup = document.createElement('div');
         popup.id = popupId;
-        popup.style.position = 'absolute';
-        popup.style.bottom = '210px';
-        popup.style.left = '50%';
-        popup.style.transform = 'translateX(-50%)';
-        popup.style.zIndex = '50';
-        popup.style.backgroundColor = '#ffffff';
-        popup.style.border = '1px solid #ccc';
-        popup.style.borderRadius = '8px';
-        popup.style.padding = '10px';
-        popup.style.boxShadow = '0 4px 10px rgba(0,0,0,0.3)';
-        popup.style.maxHeight = '250px';
-        popup.style.width = '90%';
-        popup.style.overflowY = 'auto';
-    
+        popup.className = 'absolute bottom-[280px] left-1/2 transform -translate-x-1/2 z-100 bg-white border border-gray-200 rounded-lg p-4 shadow-lg max-h-[250px] w-[90%] sm:w-[400px] overflow-y-auto fade-in';
+        
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '✕';
-        closeBtn.style.position = 'absolute';
-        closeBtn.style.top = '5px';
-        closeBtn.style.right = '5px';
-        closeBtn.style.background = 'none';
-        closeBtn.style.border = 'none';
-        closeBtn.style.cursor = 'pointer';
-        closeBtn.style.fontSize = '16px';
+        closeBtn.className = 'absolute top-2 right-2 text-gray-500 hover:text-gray-800 focus:outline-none transition-colors duration-200';
         closeBtn.onclick = removePopup;
     
         const title = document.createElement('h3');
         title.textContent = titleText;
-        title.style.fontWeight = 'bold';
-        title.style.marginBottom = '8px';
-        title.style.textAlign = 'center';
+        title.className = 'text-lg font-semibold text-gray-800 text-center mb-3';
     
         popup.appendChild(closeBtn);
         popup.appendChild(title);
     
-        books.forEach(book => {
+        // Fetch display authors for all books
+        for (const book of books) {
+            let displayAuthor;
+            try {
+                displayAuthor = await book.getDisplayAuthor();
+            } catch (error) {
+                console.error(`Failed to get display author for ${book.Title}:`, error);
+                displayAuthor = book.Author || 'Неизвестный автор';
+            }
+    
             const bookDiv = document.createElement('div');
-            bookDiv.style.display = 'flex';
-            bookDiv.style.alignItems = 'center';
-            bookDiv.style.marginBottom = '6px';
+            bookDiv.className = 'flex items-center p-2 rounded-md hover:bg-gray-100 transition-colors duration-200 mb-2 last:mb-0';
     
             const img = document.createElement('img');
             img.src = book.getCoverUrl();
-            img.style.width = '30px';
-            img.style.height = '45px';
-            img.style.objectFit = 'cover';
-            img.style.borderRadius = '3px';
-            img.style.marginRight = '8px';
+            img.className = 'w-10 h-[60px] object-cover rounded-md mr-3';
+            img.onerror = () => {
+                img.src = 'https://placehold.co/100x150?text=Нет+обложки';
+                img.onerror = null;
+            };
     
             const bookInfo = document.createElement('div');
+            bookInfo.className = 'flex-1';
             bookInfo.innerHTML = `
-                <p style="font-size: 13px; font-weight: 500;">
-                    <a href="${book.getLiveLibBookLink()}" target="_blank" style="color:#4F46E5;">${book.Title}</a>
+                <p class="text-sm font-medium text-gray-800">
+                    <a href="${book.getLiveLibBookLink()}" target="_blank" class="text-indigo-600 hover:underline">${book.Title}</a>
                 </p>
-                <p style="font-size: 12px; color: #6B7280;">${book.Author}</p>
+                <p class="text-xs text-gray-600">${displayAuthor}</p>
             `;
     
             bookDiv.appendChild(img);
             bookDiv.appendChild(bookInfo);
             popup.appendChild(bookDiv);
-        });
+        }
     
-        chartContainer.style.position = 'relative';
+        chartContainer.className = 'relative';
         chartContainer.appendChild(popup);
     
         // Close popup when clicking outside
