@@ -3,7 +3,7 @@ name: Update LiveLib Reading Stats
 on:
   push:
     branches: [main]
-    paths: ['export/livelib-*']
+    # paths: ['export/livelib-*']
 
 permissions:
   contents: write  # Grant write access to repository contents
