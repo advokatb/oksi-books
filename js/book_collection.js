@@ -339,17 +339,104 @@ class BookCollection {
                 });
             }
         }
-
+    
         const sortedGenres = Object.entries(genreCounts)
             .filter(([_, count]) => count > 0)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5);
-
+    
         const labels = sortedGenres.map(([genre]) => genre);
         const seriesData = sortedGenres.map(([_, count]) => count);
-
+    
+        const chartContainer = document.querySelector("#genreChart");
+    
+        // Remove any existing popup
+        const removePopup = () => {
+            const existingPopup = document.getElementById('genre-popup');
+            if (existingPopup) existingPopup.remove();
+        };
+    
         const options = {
-            chart: { type: 'pie', height: 200, toolbar: { show: false } },
+            chart: {
+                type: 'pie',
+                height: 200,
+                toolbar: { show: false },
+                events: {
+                    dataPointSelection: async (event, chartContext, config) => {
+                        removePopup();
+    
+                        const genre = labels[config.dataPointIndex];
+                        const filteredBooks = this.allBooks.filter(book => book.Genres && book.Genres.includes(genre));
+    
+                        // Create popup
+                        const popup = document.createElement('div');
+                        popup.id = 'genre-popup';
+                        popup.style.position = 'absolute';
+                        popup.style.bottom = '210px';
+                        popup.style.left = '50%';
+                        popup.style.transform = 'translateX(-50%)';
+                        popup.style.zIndex = '50';
+                        popup.style.backgroundColor = '#ffffff';
+                        popup.style.border = '1px solid #ccc';
+                        popup.style.borderRadius = '8px';
+                        popup.style.padding = '10px';
+                        popup.style.boxShadow = '0 4px 10px rgba(0,0,0,0.3)';
+                        popup.style.maxHeight = '250px';
+                        popup.style.width = '90%';
+                        popup.style.overflowY = 'auto';
+    
+                        const closeBtn = document.createElement('button');
+                        closeBtn.textContent = '✕';
+                        closeBtn.style.position = 'absolute';
+                        closeBtn.style.top = '5px';
+                        closeBtn.style.right = '5px';
+                        closeBtn.style.background = 'none';
+                        closeBtn.style.border = 'none';
+                        closeBtn.style.cursor = 'pointer';
+                        closeBtn.style.fontSize = '16px';
+                        closeBtn.onclick = removePopup;
+    
+                        const title = document.createElement('h3');
+                        title.textContent = `Книги жанра: ${genre}`;
+                        title.style.fontWeight = 'bold';
+                        title.style.marginBottom = '8px';
+                        title.style.textAlign = 'center';
+    
+                        popup.appendChild(closeBtn);
+                        popup.appendChild(title);
+    
+                        filteredBooks.forEach(book => {
+                            const bookDiv = document.createElement('div');
+                            bookDiv.style.display = 'flex';
+                            bookDiv.style.alignItems = 'center';
+                            bookDiv.style.marginBottom = '6px';
+    
+                            const img = document.createElement('img');
+                            img.src = book.getCoverUrl();
+                            img.style.width = '30px';
+                            img.style.height = '45px';
+                            img.style.objectFit = 'cover';
+                            img.style.borderRadius = '3px';
+                            img.style.marginRight = '8px';
+    
+                            const bookInfo = document.createElement('div');
+                            bookInfo.innerHTML = `
+                                <p style="font-size: 13px; font-weight: 500;">
+                                    <a href="${book.getLiveLibBookLink()}" target="_blank" style="color:#4F46E5;">${book.Title}</a>
+                                </p>
+                                <p style="font-size: 12px; color: #6B7280;">${book.Author}</p>
+                            `;
+    
+                            bookDiv.appendChild(img);
+                            bookDiv.appendChild(bookInfo);
+                            popup.appendChild(bookDiv);
+                        });
+    
+                        chartContainer.style.position = 'relative';
+                        chartContainer.appendChild(popup);
+                    }
+                }
+            },
             series: seriesData,
             labels: labels,
             colors: ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'],
@@ -365,8 +452,17 @@ class BookCollection {
             },
             tooltip: { y: { formatter: val => `${val} книг` } }
         };
-
-        const chart = new ApexCharts(document.querySelector("#genreChart"), options);
+    
+        const chart = new ApexCharts(chartContainer, options);
         chart.render();
+    
+        // Close popup when clicking outside
+        document.addEventListener('click', function(event) {
+            const popup = document.getElementById('genre-popup');
+            if (popup && !popup.contains(event.target) && !chartContainer.contains(event.target)) {
+                removePopup();
+            }
+        });
     }
+    
 }
