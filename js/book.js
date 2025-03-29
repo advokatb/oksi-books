@@ -79,15 +79,25 @@ class Book {
         return this.Genres?.slice(0, 3) || [];
     }
 
-    getAnnotation() {
-        return this.Annotation || 'Нет аннотации';
+    async getAnnotation() {
+        try {
+            const response = await fetch('data/book_annotations.json');
+            const annotations = await response.json();
+            const annotation = annotations[this['Book Id']];
+            return annotation || 'Нет аннотации';
+        } catch (error) {
+            console.error('Ошибка загрузки аннотаций:', error);
+            return 'Нет аннотации';
+        }
     }
+    
 
     async render() {
         const author = await this.getDisplayAuthor();
         const div = document.createElement('div');
         const pages = await this.loadCustomPages();
-    
+        const annotationText = await this.getAnnotation();
+
         const rating = parseFloat(this['My Rating']) || 0;
         const fullStars = Math.floor(rating);
         const halfStar = rating % 1 >= 0.5 ? 1 : 0;
@@ -132,7 +142,7 @@ class Book {
                     <!-- Back Side (Annotation) -->
                     <div class="back flex items-center justify-center w-full h-full">
                         <div class="p-1 text-center overflow-y-auto max-h-[180px] custom-scrollbar">
-                            <p class="text-gray-800 text-sm text-justify">${this.getAnnotation()}</p>
+                            <p class="text-gray-800 text-sm text-justify">${annotationText}</p>
                         </div>
                     </div>
                 </div>
