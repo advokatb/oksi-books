@@ -102,7 +102,6 @@ body {
 }
 
 .book-card-bg {
-    /* background: linear-gradient(135deg, #ffffff, #f9fafb); */
     background: linear-gradient(135deg, #FEF6E8, #FEF6E8);
     border-radius: 12px;
     position: absolute;
