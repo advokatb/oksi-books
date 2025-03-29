@@ -2,7 +2,6 @@ import json
 import os
 from datetime import datetime
 
-# Russian month names to English for parsing
 MONTHS = {
     'Январь': 'January', 'Февраль': 'February', 'Март': 'March', 'Апрель': 'April',
     'Май': 'May', 'Июнь': 'June', 'Июль': 'July', 'Август': 'August',
@@ -21,10 +20,16 @@ def parse_date(date_str):
         return None
 
 def load_json_file(filepath):
-    if filepath:
+    if filepath and os.path.exists(filepath):
         with open(filepath, 'r', encoding='utf-8') as file:
             return json.load(file)
     return []
+
+def load_custom_pages(filepath='data/custom_pages.json'):
+    if os.path.exists(filepath):
+        with open(filepath, 'r', encoding='utf-8') as file:
+            return json.load(file)
+    return {}
 
 def process_livelib_files(username="oksanaranneva"):
     export_dir = 'export'
@@ -37,13 +42,15 @@ def process_livelib_files(username="oksanaranneva"):
     read_data = load_json_file(os.path.join(export_dir, read_file))
     reading_data = load_json_file(os.path.join(export_dir, reading_file))
     wish_data = load_json_file(os.path.join(export_dir, wish_file))
+    custom_pages = load_custom_pages()
 
     all_books = []
 
     def create_book_entry(book, shelf):
         rating = book['rating'].get('user', '0')
+        title = book['title']
         return {
-            'Title': book['title'],
+            'Title': title,
             'Author': book['authors'][0]['name'] if book['authors'] else 'Unknown',
             'Additional Authors': ', '.join(a['name'] for a in book['authors'][1:]) if len(book['authors']) > 1 else '',
             'Date Read': parse_date(book.get('readDate')) if shelf == 'read' else None,
@@ -52,8 +59,8 @@ def process_livelib_files(username="oksanaranneva"):
             'Genres': [g['name'] for g in book.get('genres', [])],
             'Series': book['details'].get('series'),
             'Exclusive Shelf': shelf,
-            'Book Id': book.get('bookHref', '').split('/')[-1] if 'bookHref' in book else book['title'].replace(' ', '-').lower(),
-            'Number of Pages': int(book['details'].get('pages', 0))  # explicitly add this field
+            'Book Id': book.get('bookHref', '').split('/')[-1] if 'bookHref' in book else title.replace(' ', '-').lower(),
+            'Number of Pages': custom_pages.get(title, int(book['details'].get('pages', 0)))
         }
 
     for book in read_data:
@@ -75,14 +82,7 @@ def process_livelib_files(username="oksanaranneva"):
             timeline[month] = timeline.get(month, 0) + 1
     timeline_data = [{'Date': k, 'Books': v} for k, v in sorted(timeline.items())]
 
-    def load_custom_pages(filepath='data/custom_pages.json'):
-        if os.path.exists(filepath):
-            with open(filepath, 'r', encoding='utf-8') as file:
-                return json.load(file)
-        return {}
-
-    custom_pages = load_custom_pages()
-    total_pages = sum(custom_pages.get(book['Title'], 0) for book in read_books)
+    total_pages = sum(book['Number of Pages'] for book in read_books)
 
     stats = {
         'total_books': total_books,
