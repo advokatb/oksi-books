@@ -80,16 +80,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const avgBooksPerMonth = (books.allBooks.length / months.size).toFixed(1);
         document.getElementById('average-books-per-month').textContent = `${avgBooksPerMonth} книг`;
 
-        // Tab switching functionality
-        document.querySelectorAll('.tab-button').forEach(button => {
+        // Tab Switching Logic
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabPanes = document.querySelectorAll('.tab-pane');
+
+        tabButtons.forEach(button => {
             button.addEventListener('click', () => {
-                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-                document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.add('hidden'));
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabPanes.forEach(pane => pane.classList.remove('active'));
 
                 button.classList.add('active');
-                document.getElementById(button.getAttribute('data-tab')).classList.remove('hidden');
+                const tabId = button.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
             });
         });
+
 
         // Initial pagination for read books
         books.currentPage = 0;

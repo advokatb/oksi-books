@@ -13,7 +13,7 @@ def parse_date(date_str):
     if not date_str or 'г.' not in date_str:
         return None
     month, year = date_str.replace(' г.', '').split()
-    month_eng = MONTHS.get(month, month)  # Translate Russian to English, fallback to original if not found
+    month_eng = MONTHS.get(month, month)
     try:
         return datetime.strptime(f"{month_eng} {year}", '%B %Y').strftime('%Y-%m-%d')
     except ValueError as e:
@@ -30,7 +30,6 @@ def process_livelib_files(username="oksanaranneva"):
     export_dir = 'export'
     os.makedirs(export_dir, exist_ok=True)
 
-    # Find files with configurable username
     read_file = next((f for f in os.listdir(export_dir) if f.startswith(f'livelib-{username}-read-')), None)
     reading_file = next((f for f in os.listdir(export_dir) if f.startswith(f'livelib-{username}-reading-')), None)
     wish_file = next((f for f in os.listdir(export_dir) if f.startswith(f'livelib-{username}-wish-')), None)
@@ -41,56 +40,31 @@ def process_livelib_files(username="oksanaranneva"):
 
     all_books = []
 
-    # Process read books
-    for book in read_data:
+    def create_book_entry(book, shelf):
         rating = book['rating'].get('user', '0')
-        all_books.append({
+        return {
             'Title': book['title'],
             'Author': book['authors'][0]['name'] if book['authors'] else 'Unknown',
             'Additional Authors': ', '.join(a['name'] for a in book['authors'][1:]) if len(book['authors']) > 1 else '',
-            'Date Read': parse_date(book.get('readDate')),
-            'My Rating': float(rating),
-            'Cover URL': book.get('coverHref', ''),
-            'Genres': [g['name'] for g in book.get('genres', [])],
-            'Series': book['details'].get('series'),
-            'Exclusive Shelf': 'read',
-            'Book Id': book.get('bookHref', '').split('/')[-1] if 'bookHref' in book else book['title'].replace(' ', '-').lower()
-        })
-
-    # Process currently reading
-    for book in reading_data:
-        rating = book['rating'].get('user', '0')
-        all_books.append({
-            'Title': book['title'],
-            'Author': book['authors'][0]['name'] if book['authors'] else 'Unknown',
-            'Additional Authors': ', '.join(a['name'] for a in book['authors'][1:]) if len(book['authors']) > 1 else '',
-            'Date Read': None,
-            'My Rating': float(rating) if rating else 0,
-            'Cover URL': book.get('coverHref', ''),
-            'Genres': [g['name'] for g in book.get('genres', [])],
-            'Series': book['details'].get('series'),
-            'Exclusive Shelf': 'currently-reading',
-            'Book Id': book.get('bookHref', '').split('/')[-1] if 'bookHref' in book else book['title'].replace(' ', '-').lower()
-        })
-
-    # Process wish list
-    for book in wish_data:
-        rating = book['rating'].get('user', '0')
-        all_books.append({
-            'Title': book['title'],
-            'Author': book['authors'][0]['name'] if book['authors'] else 'Unknown',
-            'Additional Authors': ', '.join(a['name'] for a in book['authors'][1:]) if len(book['authors']) > 1 else '',
-            'Date Read': None,
+            'Date Read': parse_date(book.get('readDate')) if shelf == 'read' else None,
             'My Rating': float(rating) if rating else 0.0,
             'Cover URL': book.get('coverHref', ''),
             'Genres': [g['name'] for g in book.get('genres', [])],
             'Series': book['details'].get('series'),
-            'Exclusive Shelf': 'to-read',
-            'Book Id': book.get('bookHref', '').split('/')[-1] if 'bookHref' in book else book['title'].replace(' ', '-').lower()
-        })
+            'Exclusive Shelf': shelf,
+            'Book Id': book.get('bookHref', '').split('/')[-1] if 'bookHref' in book else book['title'].replace(' ', '-').lower(),
+            'Number of Pages': int(book['details'].get('pages', 0))  # explicitly add this field
+        }
 
+    for book in read_data:
+        all_books.append(create_book_entry(book, 'read'))
 
-    # Generate stats
+    for book in reading_data:
+        all_books.append(create_book_entry(book, 'currently-reading'))
+
+    for book in wish_data:
+        all_books.append(create_book_entry(book, 'to-read'))
+
     read_books = [b for b in all_books if b['Exclusive Shelf'] == 'read']
     total_books = len(read_books)
     books_2025 = len([b for b in read_books if b['Date Read'] and b['Date Read'].startswith('2025')])
@@ -107,23 +81,22 @@ def process_livelib_files(username="oksanaranneva"):
                 return json.load(file)
         return {}
 
-    # Inside your process_livelib_files function (at the end)
     custom_pages = load_custom_pages()
     total_pages = sum(custom_pages.get(book['Title'], 0) for book in read_books)
 
-    # Then update stats with total_pages:
     stats = {
         'total_books': total_books,
         'books_2025': books_2025,
-        'total_pages': total_pages, # add this line
+        'total_pages': total_pages,
         'book_list': all_books,
         'timeline': timeline_data,
-        'series_counts': {s: sum(1 for b in read_books if b['Series'] == s) for s in set(b['Series'] for b in read_books if b['Series'])}
+        'series_counts': {s: sum(1 for b in read_books if b['Series'] == s) for s in set(b['Series'] for b in read_books if b['Series'])},
+        'longest_book': max(read_books, key=lambda b: b['Number of Pages'], default={}),
+        'shortest_book': min(read_books, key=lambda b: b['Number of Pages'], default={})
     }
 
     with open('reading_stats.json', 'w', encoding='utf-8') as f:
         json.dump(stats, f, ensure_ascii=False, indent=2)
-
 
 if __name__ == '__main__':
     username = os.getenv('LIVELIB_USERNAME', 'oksanaranneva')
