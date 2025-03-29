@@ -36,6 +36,6 @@ jobs:
         run: |
           git config user.email "action@github.com"
           git config user.name "GitHub Action"
-        #   git add reading_stats.json data/author_photos.json
+          git add reading_stats.json data/author_photos.json
           git commit -m "Update LiveLib reading stats and author images for ${LIVELIB_USERNAME}" || echo "No changes"
           git push
