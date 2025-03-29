@@ -29,8 +29,8 @@ jobs:
       - name: Run Python script for data generation
         run: python process_livelib.py
 
-    #   - name: Fetch author images
-    #     run: python fetch_author_images.py
+      - name: Fetch author images
+        run: python fetch_author_images.py
 
       - name: Commit and push changes
         run: |
