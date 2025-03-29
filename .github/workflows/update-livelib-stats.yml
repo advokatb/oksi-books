@@ -35,5 +35,5 @@ jobs:
           git config user.name "GitHub Action"
           git add reading_stats.json
           # git add reading_stats.json data/author_photos.json
-          git commit -m "Update LiveLib reading stats and author images for oksi || echo "No changes"
+          git commit -m "Update LiveLib reading stats and author images for oksi" || echo "No changes"
           git push
