@@ -22,12 +22,8 @@ jobs:
         run: pip install pandas requests beautifulsoup4
 
       - name: Run Python script for data generation
-        env:
-          LIVELIB_USERNAME: ${{ secrets.LIVELIB_USERNAME }}
         run: |
-          if [ -z "$LIVELIB_USERNAME" ]; then
-            export LIVELIB_USERNAME='oksanaranneva'
-          fi
+          export LIVELIB_USERNAME='oksanaranneva'
           python process_livelib.py
 
       # - name: Fetch author images
