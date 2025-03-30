@@ -399,3 +399,14 @@ select.btn {
 .fade-in {
     animation: fadeIn 0.3s ease-out forwards;
 }
+
+.btn-primary {
+    background-color: #2563eb;
+    border-color: #2563eb;
+    color: white;
+    z-index: 9999999;
+    position: relative;
+}
+.btn-primary:disabled {
+    opacity: 0.65;
+}
