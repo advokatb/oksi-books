@@ -1,6 +1,6 @@
 body {
     background: linear-gradient(to bottom, #f0f4f8, #e0e7ff);
-    background-image: url('/oksi-books/bg.png');
+    background-image: url('/oksi-books/bg.png'), url('bg.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
