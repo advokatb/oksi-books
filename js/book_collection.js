@@ -2,7 +2,7 @@ class BookCollection {
     constructor(books, customDates) {
         this.customDates = customDates || { books: {} };
         this.models = books ? books.map(book => new Book(book, this.customDates)) : [];
-        this.allBooks = [...this.models];
+        this.allBooks = [...this.models]; // Ensure allBooks contains Book instances too
         this.currentPage = 0;
         this.booksPerPage = 9;
         console.log(`BookCollection initialized with ${this.allBooks.length} books`);
@@ -51,10 +51,10 @@ class BookCollection {
     }
 
     getLastReadBook() {
-        if (!this.allBooks.length) return null;
-        return this.allBooks.reduce((latest, book) => 
+        if (!this.models.length) return null;
+        return this.models.reduce((latest, book) => 
             new Date(book['Date Read']) > new Date(latest['Date Read']) ? book : latest, 
-            this.allBooks.find(b => b['Date Read']) || this.allBooks[0]);
+            this.models.find(b => b['Date Read']) || this.models[0]);
     }
 
     getRandomReadBook() {
@@ -120,9 +120,13 @@ class BookCollection {
         } else if (this.currentPage === 0) {
             container.innerHTML = '<p class="text-gray-600">Нет прочитанных книг</p>';
         }
+    
         const loadMoreContainer = document.getElementById('load-more-container');
-        loadMoreContainer.style.display = endIndex < this.models.length ? 'block' : 'none';
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = endIndex < this.models.length ? 'block' : 'none';
+        }
     }
+    
 
     async renderSeriesShelf(containerId) {
         const container = document.getElementById(containerId);

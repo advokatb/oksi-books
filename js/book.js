@@ -8,16 +8,16 @@ class Book {
         try {
             const response = await fetch('data/author_mapping.json');
             const AUTHOR_MAPPING = await response.json();
-            return AUTHOR_MAPPING[this.Author] || this.Author || (this['Additional Authors'] && this['Additional Authors'].split(',')[0].trim()) || 'No Author';
+            const baseAuthor = this.Author || this.Authors || (this['Additional Authors'] && this['Additional Authors'].split(',')[0].trim()) || 'No Author';
+            return AUTHOR_MAPPING[baseAuthor] || baseAuthor;
         } catch (error) {
             console.error('Failed to load author mapping:', error);
-            return this.Author || (this['Additional Authors'] && this['Additional Authors'].split(',')[0].trim()) || 'No Author';
+            return this.Author || this.Authors || (this['Additional Authors'] && this['Additional Authors'].split(',')[0].trim()) || 'No Author';
         }
     }
 
     getCoverUrl() {
         const url = this['Cover URL'] || 'https://placehold.co/100x150?text=Нет+обложки';
-        // console.log(`Cover URL for ${this.Title}: ${url}`);
         return url.startsWith('http://books.google.com') ? url.replace('http://', 'https://') : url;
     }
 
@@ -191,6 +191,11 @@ class Book {
                 ${this['Date Read'] ? `<p class="text-gray-500 text-sm">Прочитано: ${readDay}.${readMonth}.${readYear}</p>` : ''}
             </div>
         `;
+        const img = div.querySelector('img');
+        img.addEventListener('error', () => {
+            console.error(`Image load failed for ${this.Title}: ${imgSrc}`);
+            img.src = 'https://placehold.co/100x150?text=Нет+обложки';
+        });
         return div;
     }
 }
