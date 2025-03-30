@@ -301,17 +301,33 @@ class BookCollection {
     }
 
     async renderRatingChart() {
-        const ratingCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        // Define rating buckets with 0.5 increments
+        const ratingCounts = {
+            '1': 0, '1.5': 0, '2': 0, '2.5': 0, '3': 0, '3.5': 0, '4': 0, '4.5': 0, '5': 0
+        };
+    
+        // Count books in each rating bucket
         for (const book of this.allBooks) {
             if (book['Exclusive Shelf'] === 'read' && book['My Rating'] > 0) {
-                ratingCounts[book['My Rating']] = (ratingCounts[book['My Rating']] || 0) + 1;
+                // Round to nearest 0.5
+                const rating = Math.round(book['My Rating'] * 2) / 2;
+                ratingCounts[rating.toString()] = (ratingCounts[rating.toString()] || 0) + 1;
             }
         }
     
-        const seriesData = Object.values(ratingCounts);
-        const labels = Object.keys(ratingCounts).map(rating => {
-            const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
-            return `${stars} (${ratingCounts[rating]})`;
+        // Filter out empty buckets and sort ratings
+        const filteredRatingCounts = Object.entries(ratingCounts)
+            .filter(([_, count]) => count > 0) // Only keep ratings with counts > 0
+            .sort(([a], [b]) => parseFloat(a) - parseFloat(b)); // Sort numerically
+    
+        // Prepare data for chart
+        const seriesData = filteredRatingCounts.map(([_, count]) => count);
+        const labels = filteredRatingCounts.map(([rating, count]) => {
+            const numStars = parseFloat(rating);
+            const fullStars = Math.floor(numStars);
+            const halfStar = numStars % 1 === 0.5 ? '½' : '';
+            const stars = '★'.repeat(fullStars) + halfStar + '☆'.repeat(5 - Math.ceil(numStars));
+            return `${stars} (${count})`;
         });
     
         const chartContainer = document.querySelector("#ratingChart");
@@ -323,9 +339,9 @@ class BookCollection {
                 toolbar: { show: false },
                 events: {
                     dataPointSelection: async (event, chartContext, config) => {
-                        const rating = parseInt(Object.keys(ratingCounts)[config.dataPointIndex], 10);
+                        const rating = parseFloat(filteredRatingCounts[config.dataPointIndex][0]);
                         const filteredBooks = this.allBooks.filter(
-                            book => book['Exclusive Shelf'] === 'read' && book['My Rating'] === rating
+                            book => book['Exclusive Shelf'] === 'read' && Math.round(book['My Rating'] * 2) / 2 === rating
                         );
     
                         this.createChartPopup(
@@ -346,7 +362,7 @@ class BookCollection {
                 labels: {
                     style: {
                         fontSize: '12px',
-                        colors: Array(5).fill('#4B5563') // text-gray-600
+                        colors: labels.map(() => '#4B5563') // text-gray-600, dynamic length
                     }
                 }
             },
