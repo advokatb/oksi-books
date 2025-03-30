@@ -43,7 +43,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Populate genre filter
         const genreFilter = document.getElementById('genre-filter');
         if (genreFilter) {
-            const uniqueGenres = [...new Set(books.allBooks.flatMap(book => book.Genres || []))].sort();
+            const uniqueGenres = [...new Set(allBooks.flatMap(book => book.Genres || []))].sort();
+            console.log('Initial unique genres:', uniqueGenres); // Debug
             uniqueGenres.forEach(genre => {
                 const option = document.createElement('option');
                 option.value = genre;
@@ -53,11 +54,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // Render initial UI
+        const currentBookContainer = document.getElementById('current-book');
         if (currentBooks.models.length > 0) {
             const currentBookDiv = await currentBooks.models[0].renderCurrent();
-            document.getElementById('current-book').appendChild(currentBookDiv);
+            currentBookContainer.appendChild(currentBookDiv);
         } else {
-            document.getElementById('current-book').innerHTML = '<p class="text-gray-600">Ничего не читаю сейчас</p>';
+            currentBookContainer.innerHTML = '<p class="text-gray-600">Ничего не читаю сейчас</p>';
         }
 
         const lastReadBook = books.getLastReadBook();
@@ -69,9 +71,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const mostProlificAuthorDiv = await books.renderMostProlificAuthor();
         document.getElementById('most-prolific-author').appendChild(mostProlificAuthorDiv);
 
-        await books.renderTimelineChart();
-        await books.renderRatingChart();
-        await books.renderGenreChart();
+        // Render charts asynchronously with Promise.all for performance
+        await Promise.all([
+            books.renderTimelineChart(),
+            books.renderRatingChart(),
+            books.renderGenreChart()
+        ]);
 
         books.currentPage = 0;
         books.booksPerPage = 9;
@@ -88,8 +93,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Reading challenge stats
         const challengeGoal = 50;
-        const progressPercent = Math.min((staticStats.books_2025 / challengeGoal) * 100, 100).toFixed(0);
-        document.getElementById('challenge-progress').innerHTML = `<strong>${staticStats.books_2025} из ${challengeGoal} книг прочитано</strong>`;
+        const initialBooks2025 = readBooks.filter(b => b['Date Read']?.startsWith('2025')).length || staticStats.books_2025;
+        const progressPercent = Math.min((initialBooks2025 / challengeGoal) * 100, 100).toFixed(0);
+        document.getElementById('challenge-progress').innerHTML = `<strong>${initialBooks2025} из ${challengeGoal} книг прочитано</strong>`;
         document.getElementById('challenge-days').textContent = `Осталось ${Math.ceil((new Date('2025-12-31') - new Date()) / (1000 * 60 * 60 * 24))} дней`;
         document.getElementById('challenge-bar').style.width = `${progressPercent}%`;
         document.getElementById('challenge-percent').textContent = `${progressPercent}%`;
@@ -99,7 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (totalContainer) {
             totalContainer.querySelector('p:nth-child(1)').textContent = getBookDeclension(staticStats.total_books || 0);
             totalContainer.querySelector('p:nth-child(2)').textContent = `${(staticStats.total_pages || 0).toLocaleString('ru-RU')} страниц`;
-            totalContainer.querySelector('p:nth-child(3) span').textContent = staticStats.books_2025 || 0;
+            totalContainer.querySelector('p:nth-child(3) span').textContent = initialBooks2025;
         }
 
         // Книжные рекорды
@@ -109,22 +115,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('shortest-book').textContent = `${shortestBook.Title} (${shortestBook['Number of Pages']} страниц)`;
 
         // Average books per month
-        const months = new Set(books.allBooks.map(b => b['Date Read']?.slice(0, 7)).filter(Boolean));
-        const avgBooksPerMonth = months.size ? (books.allBooks.length / months.size).toFixed(1) : 0;
+        const months = new Set(readBooks.map(b => b['Date Read']?.slice(0, 7)).filter(Boolean));
+        console.log('Initial months with reads:', [...months]); // Debug
+        const avgBooksPerMonth = months.size ? (readBooks.length / months.size).toFixed(1) : 0;
         document.getElementById('average-books-per-month').textContent = `${avgBooksPerMonth} книг`;
 
         // Random book image
         const randomReadBook = books.getRandomReadBook();
-        if (randomReadBook) {
-            document.getElementById('total-book-image').src = randomReadBook.getCoverUrl();
-            document.getElementById('total-book-image').alt = randomReadBook.Title;
+        const totalBookImage = document.getElementById('total-book-image');
+        if (randomReadBook && totalBookImage) {
+            totalBookImage.src = randomReadBook.getCoverUrl();
+            totalBookImage.alt = randomReadBook.Title;
+            totalBookImage.onerror = () => {
+                totalBookImage.src = 'https://placehold.co/100x150?text=Нет+обложки';
+                totalBookImage.onerror = null;
+            };
+        } else if (totalBookImage) {
+            totalBookImage.src = 'https://placehold.co/100x150?text=Нет+обложки';
         }
 
         // Total series count
         document.getElementById('total-series').textContent = Object.keys(staticStats.series_counts || {}).length;
 
         // Refresh button
-        const container = document.querySelector('.container') || document.body; // Fallback to body if .container is missing
+        const container = document.querySelector('.container') || document.body;
         const refreshButton = document.createElement('button');
         refreshButton.textContent = 'Обновить данные с LiveLib';
         refreshButton.className = 'btn btn-primary mt-3';
@@ -179,6 +193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 readBooks = updatedBooks.filter(b => b['Exclusive Shelf'] === 'read');
                 readingBooks = updatedBooks.filter(b => b['Exclusive Shelf'] === 'currently-reading');
                 wishBooks = updatedBooks.filter(b => b['Exclusive Shelf'] === 'to-read');
+                allBooks = [...readBooks, ...readingBooks, ...wishBooks];
 
                 const newBooks = new BookCollection(readBooks, customDates);
                 books.models = newBooks.models;
@@ -193,12 +208,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 toReadBooks.allBooks = newToReadBooks.allBooks;
 
                 // Refresh UI
-                document.getElementById('current-book').innerHTML = '';
+                currentBookContainer.innerHTML = '';
                 if (currentBooks.models.length > 0) {
                     const currentBookDiv = await currentBooks.models[0].renderCurrent();
-                    document.getElementById('current-book').appendChild(currentBookDiv);
+                    currentBookContainer.appendChild(currentBookDiv);
                 } else {
-                    document.getElementById('current-book').innerHTML = '<p class="text-gray-600">Ничего не читаю сейчас</p>';
+                    currentBookContainer.innerHTML = '<p class="text-gray-600">Ничего не читаю сейчас</p>';
                 }
 
                 const newLastReadBook = books.getLastReadBook();
@@ -212,9 +227,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const newMostProlificAuthorDiv = await books.renderMostProlificAuthor();
                 document.getElementById('most-prolific-author').appendChild(newMostProlificAuthorDiv);
 
-                await books.renderTimelineChart();
-                await books.renderRatingChart();
-                await books.renderGenreChart();
+                await Promise.all([
+                    books.renderTimelineChart(),
+                    books.renderRatingChart(),
+                    books.renderGenreChart()
+                ]);
 
                 books.currentPage = 0;
                 await books.renderPage('book-list');
@@ -239,11 +256,40 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 document.getElementById('challenge-progress').innerHTML = `<strong>${books2025} из ${challengeGoal} книг прочитано</strong>`;
                 document.getElementById('challenge-bar').style.width = `${Math.min((books2025 / challengeGoal) * 100, 100).toFixed(0)}%`;
+                document.getElementById('challenge-percent').textContent = `${Math.min((books2025 / challengeGoal) * 100, 100).toFixed(0)}%`;
                 document.getElementById('total-series').textContent = Object.keys(seriesCounts).length;
                 if (totalContainer) {
                     totalContainer.querySelector('p:nth-child(1)').textContent = getBookDeclension(totalBooks);
                     totalContainer.querySelector('p:nth-child(2)').textContent = `${totalPages.toLocaleString('ru-RU')} страниц`;
                     totalContainer.querySelector('p:nth-child(3) span').textContent = books2025;
+                }
+
+                const refreshedLongestBook = readBooks.length ? readBooks.reduce((a, b) => (b['Number of Pages'] || 0) > (a['Number of Pages'] || 0) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
+                const refreshedShortestBook = readBooks.length ? readBooks.reduce((a, b) => (b['Number of Pages'] || Infinity) < (a['Number of Pages'] || Infinity) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
+                document.getElementById('longest-book').textContent = `${refreshedLongestBook.Title} (${refreshedLongestBook['Number of Pages']} страниц)`;
+                document.getElementById('shortest-book').textContent = `${refreshedShortestBook.Title} (${refreshedShortestBook['Number of Pages']} страниц)`;
+
+                const refreshedMonths = new Set(readBooks.map(b => b['Date Read']?.slice(0, 7)).filter(Boolean));
+                const refreshedAvgBooksPerMonth = refreshedMonths.size ? (readBooks.length / refreshedMonths.size).toFixed(1) : 0;
+                document.getElementById('average-books-per-month').textContent = `${refreshedAvgBooksPerMonth} книг`;
+
+                const refreshedRandomBook = books.getRandomReadBook();
+                if (refreshedRandomBook && totalBookImage) {
+                    totalBookImage.src = refreshedRandomBook.getCoverUrl();
+                    totalBookImage.alt = refreshedRandomBook.Title;
+                }
+
+                // Refresh genre filter
+                if (genreFilter) {
+                    genreFilter.innerHTML = '<option value="">Все жанры</option>';
+                    const refreshedGenres = [...new Set(allBooks.flatMap(book => book.Genres || []))].sort();
+                    console.log('Refreshed unique genres:', refreshedGenres); // Debug
+                    refreshedGenres.forEach(genre => {
+                        const option = document.createElement('option');
+                        option.value = genre;
+                        option.textContent = genre;
+                        genreFilter.appendChild(option);
+                    });
                 }
 
                 alert('Данные успешно обновлены!');
