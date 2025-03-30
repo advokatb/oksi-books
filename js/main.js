@@ -1,86 +1,25 @@
+// main.js
+import { fetchLiveLibData, loadStaticData } from './dataFetcher.js';
+import { loadBooksFromStorage, saveBooksToStorage } from './storage.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const username = 'oksanaranneva';
 
-        // Function to fetch LiveLib data
-        const fetchLiveLibData = async () => {
-            const shelves = [
-                { pagename: 'read', elementId: 'read-books' },
-                { pagename: 'reading', elementId: 'last-read-book' },
-                { pagename: 'wish', elementId: 'future-books-tab' }
-            ];
-            const includeColumns = ['title', 'authors', 'readDate', 'ratingUser', 'isbn', 'genres', 'series', 'bookHref', 'coverHref'];
-            const updatedBooks = [];
+        // Load static data
+        const { customPages, bookAnnotations, customDates } = await loadStaticData();
 
-            for (const shelf of shelves) {
-                const url = new URL('https://script.google.com/macros/s/AKfycbxzTdo297yeLns95JN_h8xCKfIKNNvqKg8bk5NXrEOxeRD-gbQAqgxiB18IDDG2WbOO/exec');
-                url.searchParams.append('username', username);
-                url.searchParams.append('pagename', shelf.pagename);
-                url.searchParams.append('includeColumns', includeColumns.join(','));
-
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`Ошибка загрузки ${shelf.pagename}: ${response.status}`);
-
-                const data = await response.json();
-                if (!data.bookArray || !Array.isArray(data.bookArray)) {
-                    throw new Error(`Некорректный формат данных для ${shelf.pagename}`);
-                }
-
-                const booksData = data.bookArray.map(book => ({
-                    ...book,
-                    'Exclusive Shelf': shelf.pagename === 'reading' ? 'currently-reading' : (shelf.pagename === 'wish' ? 'to-read' : 'read'),
-                    'Book Id': book.bookHref.split('/').pop(),
-                    'Annotation': bookAnnotations[book.bookHref.split('/').pop()] || book.annotation || 'Нет аннотации',
-                    'Authors': Array.isArray(book.authors) ? book.authors.map(a => a.name).join(', ') : 'Неизвестный автор',
-                    'Genres': Array.isArray(book.genres) ? book.genres.map(g => g.name) : [],
-                    'Series': book.details?.series || null,
-                    'My Rating': parseFloat(book.rating?.user) || 0,
-                    'Cover URL': book.coverHref || 'https://placehold.co/100x150?text=Нет+обложки',
-                    'Title': book.title,
-                    'ISBN': book.details?.isbn || 'Не указан',
-                    'Date Read': book.readDate ? parseDate(book.readDate) : null,
-                    'Number of Pages': customPages[book.title] || book.details?.pages || 0
-                }));
-                updatedBooks.push(...booksData);
-            }
-            return updatedBooks;
-        };
-
-        // Load static data as fallback
-        const customPagesResponse = await fetch('data/custom_pages.json');
-        const customPages = await customPagesResponse.json();
-        const annotationsResponse = await fetch('data/book_annotations.json');
-        const bookAnnotations = await annotationsResponse.json();
-        let customDates = {};
-        try {
-            const customDatesResponse = await fetch('data/custom_dates.json');
-            customDates = await customDatesResponse.json();
-        } catch (e) {
-            console.warn('Failed to load custom_dates.json:', e);
-        }
-
-        // Load or fetch initial data with timestamp
-        let allBooks;
-        let lastUpdated;
-        const storedData = localStorage.getItem('livelibBooks');
-        if (storedData) {
-            const data = JSON.parse(storedData);
-            if (Array.isArray(data)) {
-                // Old format: just an array of books
-                allBooks = data;
-                lastUpdated = null; // No timestamp in old data
-                // Migrate to new format
-                localStorage.setItem('livelibBooks', JSON.stringify({ books: allBooks, timestamp: lastUpdated }));
-            } else {
-                // New format: object with books and timestamp
-                allBooks = data.books || [];
-                lastUpdated = data.timestamp || null;
-            }
+        // Load or fetch initial data
+        let allBooks, lastUpdated;
+        const stored = loadBooksFromStorage();
+        if (stored) {
+            allBooks = stored.allBooks;
+            lastUpdated = stored.lastUpdated;
             console.log('Loaded books from localStorage:', allBooks.length, 'Last updated:', lastUpdated);
         } else {
-            allBooks = await fetchLiveLibData();
+            allBooks = await fetchLiveLibData(username, bookAnnotations, customPages);
             lastUpdated = new Date().toISOString();
-            localStorage.setItem('livelibBooks', JSON.stringify({ books: allBooks, timestamp: lastUpdated }));
+            saveBooksToStorage(allBooks, lastUpdated);
             console.log('Fetched initial books from LiveLib:', allBooks.length);
         }
 
@@ -109,7 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Render initial UI and remove skeletons
         const currentBookContainer = document.getElementById('current-book');
-        currentBookContainer.innerHTML = ''; // Clear skeleton
+        currentBookContainer.innerHTML = '';
         if (currentBooks.models.length > 0) {
             const currentBookDiv = await currentBooks.models[0].renderCurrent();
             currentBookContainer.appendChild(currentBookDiv);
@@ -119,21 +58,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const lastReadBook = books.getLastReadBook();
         const lastReadBookContainer = document.getElementById('last-read-book');
-        lastReadBookContainer.innerHTML = ''; // Clear skeleton
+        lastReadBookContainer.innerHTML = '';
         if (lastReadBook) {
             const lastReadBookDiv = await lastReadBook.renderCurrent();
             lastReadBookContainer.appendChild(lastReadBookDiv);
         }
 
         const mostProlificAuthorContainer = document.getElementById('most-prolific-author');
-        mostProlificAuthorContainer.innerHTML = ''; // Clear skeleton
+        mostProlificAuthorContainer.innerHTML = '';
         const mostProlificAuthorDiv = await books.renderMostProlificAuthor();
         mostProlificAuthorContainer.appendChild(mostProlificAuthorDiv);
 
-        // Total stats
         const totalContainer = document.querySelector('#total-book')?.nextElementSibling;
         if (totalContainer) {
-            totalContainer.innerHTML = ''; // Clear skeleton
+            totalContainer.innerHTML = '';
             totalContainer.innerHTML = `
                 <p class="text-lg font-bold">${getBookDeclension(readBooks.length)}</p>
                 <p class="text-lg">${readBooks.reduce((sum, b) => sum + (b['Number of Pages'] || 0), 0).toLocaleString('ru-RU')} страниц</p>
@@ -142,43 +80,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const totalBookImage = document.getElementById('total-book-image');
+        console.log('Total book image element:', totalBookImage); // Check if element exists
         const randomReadBook = books.getRandomReadBook();
+        console.log('Random read book:', randomReadBook); // Check if book is returned
+
         if (randomReadBook && totalBookImage) {
-            totalBookImage.src = randomReadBook.getCoverUrl();
+            const coverUrl = randomReadBook.getCoverUrl();
+            console.log('Cover URL:', coverUrl); // Verify the URL
+            totalBookImage.src = coverUrl;
             totalBookImage.alt = randomReadBook.Title;
             totalBookImage.classList.remove('skeleton');
             totalBookImage.onerror = () => {
+                console.log('Image failed to load, using fallback');
                 totalBookImage.src = 'https://placehold.co/100x150?text=Нет+обложки';
-                totalBookImage.onerror = null;
+                totalBookImage.onerror = null; // Prevent infinite loop
             };
         } else if (totalBookImage) {
+            console.log('No random book found, setting fallback image');
             totalBookImage.src = 'https://placehold.co/100x150?text=Нет+обложки';
+            totalBookImage.alt = 'Нет обложки';
             totalBookImage.classList.remove('skeleton');
+        } else {
+            console.error('Total book image element not found in DOM');
         }
 
-        // Render book list
         books.currentPage = 0;
         books.booksPerPage = 9;
         books.sortBy('date-desc');
         const bookListContainer = document.getElementById('book-list');
-        bookListContainer.innerHTML = ''; // Clear skeleton
+        bookListContainer.innerHTML = '';
         await books.renderPage('book-list');
 
-        // Render future reads
         const futureReadsContainer = document.getElementById('future-reads');
-        futureReadsContainer.innerHTML = ''; // Clear skeleton
+        futureReadsContainer.innerHTML = '';
         if (toReadBooks.models.length > 0) {
             await toReadBooks.renderFutureReads('future-reads');
         } else {
             futureReadsContainer.innerHTML = '<p class="text-gray-600">Нет книг для чтения</p>';
         }
 
-        // Render series shelf
         const seriesShelfContainer = document.getElementById('series-shelf');
-        seriesShelfContainer.innerHTML = ''; // Clear skeleton
+        seriesShelfContainer.innerHTML = '';
         await books.renderSeriesShelf('series-shelf');
 
-        // Reading challenge stats
         const challengeGoal = 50;
         const books2025 = readBooks.filter(b => b['Date Read']?.startsWith('2025')).length;
         const progressPercent = Math.min((books2025 / challengeGoal) * 100, 100).toFixed(0);
@@ -202,7 +146,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('Challenge container not found');
         }
 
-        // Book records
         const longestBook = readBooks.length ? readBooks.reduce((a, b) => (b['Number of Pages'] || 0) > (a['Number of Pages'] || 0) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
         const shortestBook = readBooks.length ? readBooks.reduce((a, b) => (b['Number of Pages'] || Infinity) < (a['Number of Pages'] || Infinity) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
         document.getElementById('book-records').innerHTML = `
@@ -210,7 +153,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             <p class="text-gray-600 text-sm"><strong>Самая короткая книга:</strong> ${shortestBook.Title} (${shortestBook['Number of Pages']} страниц)</p>
         `;
 
-        // Reading stats
         const seriesCounts = {};
         readBooks.forEach(b => {
             if (b.Series) seriesCounts[b.Series] = (seriesCounts[b.Series] || 0) + 1;
@@ -222,7 +164,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             <p class="text-gray-600 text-sm"><strong>В среднем прочитано в месяц:</strong> ${avgBooksPerMonth} книг</p>
         `;
 
-        // Render charts
         const chartContainers = {
             timelineChart: document.querySelector('#timelineChart'),
             ratingChart: document.querySelector('#ratingChart'),
@@ -251,14 +192,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             : 'Данные еще не обновлялись';
         refreshContainer.appendChild(refreshButton);
         refreshContainer.appendChild(timestampDisplay);
-        container.appendChild(refreshContainer); // Place at bottom by default
+        container.appendChild(refreshContainer);
 
         refreshButton.addEventListener('click', async () => {
             try {
                 refreshButton.disabled = true;
                 refreshButton.textContent = 'Загрузка...';
 
-                // Show skeletons again during refresh
                 currentBookContainer.innerHTML = '<div class="skeleton skeleton-image mr-4"></div><div class="flex-1"><div class="skeleton skeleton-text w-3/4"></div><div class="skeleton skeleton-text w-1/2"></div><div class="skeleton skeleton-text w-2/3"></div></div>';
                 lastReadBookContainer.innerHTML = '<div class="skeleton skeleton-image mr-4"></div><div class="flex-1"><div class="skeleton skeleton-text w-3/4"></div><div class="skeleton skeleton-text w-1/2"></div><div class="skeleton skeleton-text w-2/3"></div></div>';
                 mostProlificAuthorContainer.innerHTML = '<div class="skeleton skeleton-image w-16 h-24 mr-2"></div><div class="flex-1"><div class="skeleton skeleton-text w-3/4"></div><div class="skeleton skeleton-text w-1/2"></div></div>';
@@ -284,11 +224,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('reading-stats').innerHTML = '<div class="skeleton skeleton-text w-3/4 mb-2"></div><div class="skeleton skeleton-text w-3/4"></div>';
                 Object.values(chartContainers).forEach(container => container.classList.add('skeleton'));
 
-                allBooks = await fetchLiveLibData();
+                allBooks = await fetchLiveLibData(username, bookAnnotations, customPages);
                 lastUpdated = new Date().toISOString();
-                localStorage.setItem('livelibBooks', JSON.stringify({ books: allBooks, timestamp: lastUpdated }));
+                saveBooksToStorage(allBooks, lastUpdated);
 
-                // Update collections
                 readBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'read');
                 readingBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'currently-reading');
                 wishBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'to-read');
@@ -300,7 +239,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 toReadBooks.models = new BookCollection(wishBooks, customDates).models;
                 toReadBooks.allBooks = toReadBooks.models;
 
-                // Refresh UI
                 currentBookContainer.innerHTML = '';
                 if (currentBooks.models.length > 0) {
                     const currentBookDiv = await currentBooks.models[0].renderCurrent();
@@ -326,11 +264,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <p class="text-sm text-gray-500">В этом году: <span>${readBooks.filter(b => b['Date Read']?.startsWith('2025')).length}</span></p>
                 `;
                 const refreshedRandomBook = books.getRandomReadBook();
+                console.log('Refreshed random book:', refreshedRandomBook);
                 if (refreshedRandomBook && totalBookImage) {
-                    totalBookImage.src = refreshedRandomBook.getCoverUrl();
+                    const coverUrl = refreshedRandomBook.getCoverUrl();
+                    console.log('Refreshed cover URL:', coverUrl);
+                    totalBookImage.src = coverUrl;
                     totalBookImage.alt = refreshedRandomBook.Title;
                     totalBookImage.classList.remove('skeleton');
                     totalBookImage.onerror = () => {
+                        console.log('Refreshed image failed, using fallback');
                         totalBookImage.src = 'https://placehold.co/100x150?text=Нет+обложки';
                         totalBookImage.onerror = null;
                     };
@@ -400,9 +342,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                 }
 
-                // Update timestamp display
                 timestampDisplay.textContent = `Последнее обновление: ${new Date(lastUpdated).toLocaleString('ru-RU')}`;
-
                 alert('Данные успешно обновлены!');
             } catch (error) {
                 console.error('Refresh error:', error);
@@ -417,7 +357,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const applyFilters = async () => {
             let filteredBooks = books.filterByGenre(genreFilter?.value).sortBy(document.getElementById('sort-by')?.value || 'date-desc');
             filteredBooks.currentPage = 0;
-            bookListContainer.innerHTML = ''; // Clear before rendering
+            bookListContainer.innerHTML = '';
             await filteredBooks.renderPage('book-list');
         };
         if (genreFilter) genreFilter.addEventListener('change', applyFilters);
@@ -447,14 +387,4 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// Parse date function
-function parseDate(dateStr) {
-    if (!dateStr || !dateStr.includes('г.')) return null;
-    const [month, year] = dateStr.replace(' г.', '').split(' ');
-    const monthMap = {
-        'Январь': '01', 'Февраль': '02', 'Март': '03', 'Апрель': '04',
-        'Май': '05', 'Июнь': '06', 'Июль': '07', 'Август': '08',
-        'Сентябрь': '09', 'Октябрь': '10', 'Ноябрь': '11', 'Декабрь': '12'
-    };
-    return `${year}-${monthMap[month] || '01'}-01`;
-}
+import { getBookDeclension } from './utils.js';
