@@ -410,3 +410,40 @@ select.btn {
 .btn-primary:disabled {
     opacity: 0.65;
 }
+
+/* Skeleton Loader Styles */
+.skeleton {
+    background: linear-gradient(90deg, #e5e7eb, #d1d5db, #e5e7eb);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+    border-radius: 8px;
+}
+
+.skeleton-text {
+    height: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.skeleton-image {
+    width: 100px;
+    height: 150px;
+}
+
+.skeleton-card {
+    min-height: 200px;
+    max-height: 200px;
+}
+
+.skeleton-chart {
+    height: 200px;
+    min-height: 215px;
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
