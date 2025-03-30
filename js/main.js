@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (genreFilter) {
             genreFilter.innerHTML = '<option value="">Все жанры</option>';
             const uniqueGenres = [...new Set(allBooks.flatMap(book => book.Genres || []))].sort();
-            console.log('Unique genres:', uniqueGenres);
+            // console.log('Unique genres:', uniqueGenres);
             uniqueGenres.forEach(genre => {
                 const option = document.createElement('option');
                 option.value = genre;
@@ -80,23 +80,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const totalBookImage = document.getElementById('total-book-image');
-        console.log('Total book image element:', totalBookImage); // Check if element exists
         const randomReadBook = books.getRandomReadBook();
-        console.log('Random read book:', randomReadBook); // Check if book is returned
 
         if (randomReadBook && totalBookImage) {
             const coverUrl = randomReadBook.getCoverUrl();
-            console.log('Cover URL:', coverUrl); // Verify the URL
             totalBookImage.src = coverUrl;
             totalBookImage.alt = randomReadBook.Title;
             totalBookImage.classList.remove('skeleton');
             totalBookImage.onerror = () => {
-                console.log('Image failed to load, using fallback');
                 totalBookImage.src = 'https://placehold.co/100x150?text=Нет+обложки';
                 totalBookImage.onerror = null; // Prevent infinite loop
             };
         } else if (totalBookImage) {
-            console.log('No random book found, setting fallback image');
             totalBookImage.src = 'https://placehold.co/100x150?text=Нет+обложки';
             totalBookImage.alt = 'Нет обложки';
             totalBookImage.classList.remove('skeleton');
@@ -264,10 +259,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <p class="text-sm text-gray-500">В этом году: <span>${readBooks.filter(b => b['Date Read']?.startsWith('2025')).length}</span></p>
                 `;
                 const refreshedRandomBook = books.getRandomReadBook();
-                console.log('Refreshed random book:', refreshedRandomBook);
                 if (refreshedRandomBook && totalBookImage) {
                     const coverUrl = refreshedRandomBook.getCoverUrl();
-                    console.log('Refreshed cover URL:', coverUrl);
                     totalBookImage.src = coverUrl;
                     totalBookImage.alt = refreshedRandomBook.Title;
                     totalBookImage.classList.remove('skeleton');
