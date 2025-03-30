@@ -65,8 +65,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const storedData = localStorage.getItem('livelibBooks');
         if (storedData) {
             const data = JSON.parse(storedData);
-            allBooks = data.books;
-            lastUpdated = data.timestamp || null;
+            if (Array.isArray(data)) {
+                // Old format: just an array of books
+                allBooks = data;
+                lastUpdated = null; // No timestamp in old data
+                // Migrate to new format
+                localStorage.setItem('livelibBooks', JSON.stringify({ books: allBooks, timestamp: lastUpdated }));
+            } else {
+                // New format: object with books and timestamp
+                allBooks = data.books || [];
+                lastUpdated = data.timestamp || null;
+            }
             console.log('Loaded books from localStorage:', allBooks.length, 'Last updated:', lastUpdated);
         } else {
             allBooks = await fetchLiveLibData();
