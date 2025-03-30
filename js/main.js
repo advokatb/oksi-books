@@ -152,19 +152,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         const longestBook = readBooks.length ? readBooks.reduce((a, b) => (b['Number of Pages'] || 0) > (a['Number of Pages'] || 0) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
         const shortestBook = readBooks.length ? readBooks.reduce((a, b) => (b['Number of Pages'] || Infinity) < (a['Number of Pages'] || Infinity) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
         document.getElementById('book-records').innerHTML = `
-            <p class="text-gray-600 text-sm mb-2"><strong>Самая длинная книга:</strong> ${longestBook.Title} (${longestBook['Number of Pages']} страниц)</p>
-            <p class="text-gray-600 text-sm"><strong>Самая короткая книга:</strong> ${shortestBook.Title} (${shortestBook['Number of Pages']} страниц)</p>
+            <p class="text-gray-700 text-base flex items-center">
+                <span class="text-indigo-600 mr-2">📏</span>
+                <span><strong>Самая длинная книга:</strong> ${longestBook.Title} <span class="font-semibold text-indigo-600">(${longestBook['Number of Pages']} стр.)</span></span>
+            </p>
+            <p class="text-gray-700 text-base flex items-center">
+                <span class="text-indigo-600 mr-2">📖</span>
+                <span><strong>Самая короткая книга:</strong> ${shortestBook.Title} <span class="font-semibold text-indigo-600">(${shortestBook['Number of Pages']} стр.)</span></span>
+            </p>
         `;
 
+        // Reading Stats
         const seriesCounts = {};
         readBooks.forEach(b => {
             if (b.Series) seriesCounts[b.Series] = (seriesCounts[b.Series] || 0) + 1;
         });
+        const totalBooks = readBooks.length;
+        const totalPages = readBooks.reduce((sum, b) => sum + (b['Number of Pages'] || 0), 0);
         const months = new Set(readBooks.map(b => b['Date Read']?.slice(0, 7)).filter(Boolean));
         const avgBooksPerMonth = months.size ? (readBooks.length / months.size).toFixed(1) : 0;
+        const avgPagesPerMonth = months.size ? (totalPages / months.size).toFixed(0) : 0;
         document.getElementById('reading-stats').innerHTML = `
-            <p class="text-gray-600 text-sm mb-2"><strong>Циклов прочитано всего:</strong> ${Object.keys(seriesCounts).length}</p>
-            <p class="text-gray-600 text-sm"><strong>В среднем прочитано в месяц:</strong> ${avgBooksPerMonth} книг</p>
+            <p class="text-gray-700 text-base flex items-center">
+                <span class="text-indigo-600 mr-2">📚</span>
+                <span><strong>Всего книг:</strong> <span class="font-semibold text-indigo-600">${totalBooks.toLocaleString('ru-RU')}</span></span>
+            </p>
+            <p class="text-gray-700 text-base flex items-center">
+                <span class="text-indigo-600 mr-2">📖</span>
+                <span><strong>Всего страниц:</strong> <span class="font-semibold text-indigo-600">${totalPages.toLocaleString('ru-RU')}</span></span>
+            </p>
+            <p class="text-gray-700 text-base flex items-center">
+                <span class="text-indigo-600 mr-2">🔄</span>
+                <span><strong>Циклов прочитано:</strong> <span class="font-semibold text-indigo-600">${Object.keys(seriesCounts).length}</span></span>
+            </p>
+            <p class="text-gray-700 text-base flex items-center">
+                <span class="text-indigo-600 mr-2">📅</span>
+                <span><strong>В среднем в месяц:</strong> <span class="font-semibold text-indigo-600">${avgBooksPerMonth} книг</span></span>
+            </p>
+            <p class="text-gray-700 text-base flex items-center">
+                <span class="text-indigo-600 mr-2">📜</span>
+                <span><strong>Страниц в месяц:</strong> <span class="font-semibold text-indigo-600">${avgPagesPerMonth.toLocaleString('ru-RU')}</span></span>
+            </p>
         `;
 
         const chartContainers = {
@@ -314,15 +342,42 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const refreshedLongestBook = readBooks.length ? readBooks.reduce((a, b) => (b['Number of Pages'] || 0) > (a['Number of Pages'] || 0) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
                 const refreshedShortestBook = readBooks.length ? readBooks.reduce((a, b) => (b['Number of Pages'] || Infinity) < (a['Number of Pages'] || Infinity) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
                 document.getElementById('book-records').innerHTML = `
-                    <p class="text-gray-600 text-sm mb-2"><strong>Самая длинная книга:</strong> ${refreshedLongestBook.Title} (${refreshedLongestBook['Number of Pages']} страниц)</p>
-                    <p class="text-gray-600 text-sm"><strong>Самая короткая книга:</strong> ${refreshedShortestBook.Title} (${refreshedShortestBook['Number of Pages']} страниц)</p>
+                    <p class="text-gray-700 text-base flex items-center">
+                        <span class="text-indigo-600 mr-2">📏</span>
+                        <span><strong>Самая длинная книга:</strong> ${refreshedLongestBook.Title} <span class="font-semibold text-indigo-600">(${refreshedLongestBook['Number of Pages']} стр.)</span></span>
+                    </p>
+                    <p class="text-gray-700 text-base flex items-center">
+                        <span class="text-indigo-600 mr-2">📖</span>
+                        <span><strong>Самая короткая книга:</strong> ${refreshedShortestBook.Title} <span class="font-semibold text-indigo-600">(${refreshedShortestBook['Number of Pages']} стр.)</span></span>
+                    </p>
                 `;
 
                 const refreshedMonths = new Set(readBooks.map(b => b['Date Read']?.slice(0, 7)).filter(Boolean));
+                const refreshedTotalBooks = readBooks.length;
+                const refreshedTotalPages = readBooks.reduce((sum, b) => sum + (b['Number of Pages'] || 0), 0);
                 const refreshedAvgBooksPerMonth = refreshedMonths.size ? (readBooks.length / refreshedMonths.size).toFixed(1) : 0;
+                const refreshedAvgPagesPerMonth = refreshedMonths.size ? (refreshedTotalPages / refreshedMonths.size).toFixed(0) : 0;
                 document.getElementById('reading-stats').innerHTML = `
-                    <p class="text-gray-600 text-sm mb-2"><strong>Циклов прочитано всего:</strong> ${Object.keys(seriesCounts).length}</p>
-                    <p class="text-gray-600 text-sm"><strong>В среднем прочитано в месяц:</strong> ${refreshedAvgBooksPerMonth} книг</p>
+                    <p class="text-gray-700 text-base flex items-center">
+                        <span class="text-indigo-600 mr-2">📚</span>
+                        <span><strong>Всего книг:</strong> <span class="font-semibold text-indigo-600">${refreshedTotalBooks.toLocaleString('ru-RU')}</span></span>
+                    </p>
+                    <p class="text-gray-700 text-base flex items-center">
+                        <span class="text-indigo-600 mr-2">📖</span>
+                        <span><strong>Всего страниц:</strong> <span class="font-semibold text-indigo-600">${refreshedTotalPages.toLocaleString('ru-RU')}</span></span>
+                    </p>
+                    <p class="text-gray-700 text-base flex items-center">
+                        <span class="text-indigo-600 mr-2">🔄</span>
+                        <span><strong>Циклов прочитано:</strong> <span class="font-semibold text-indigo-600">${Object.keys(seriesCounts).length}</span></span>
+                    </p>
+                    <p class="text-gray-700 text-base flex items-center">
+                        <span class="text-indigo-600 mr-2">📅</span>
+                        <span><strong>В среднем в месяц:</strong> <span class="font-semibold text-indigo-600">${refreshedAvgBooksPerMonth} книг</span></span>
+                    </p>
+                    <p class="text-gray-700 text-base flex items-center">
+                        <span class="text-indigo-600 mr-2">📜</span>
+                        <span><strong>Страниц в месяц:</strong> <span class="font-semibold text-indigo-600">${refreshedAvgPagesPerMonth.toLocaleString('ru-RU')}</span></span>
+                    </p>
                 `;
 
                 Object.values(chartContainers).forEach(container => container.classList.remove('skeleton'));
