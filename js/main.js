@@ -2,25 +2,33 @@
 import { fetchLiveLibData, loadStaticData } from './dataFetcher.js';
 import { loadBooksFromStorage, saveBooksToStorage } from './storage.js';
 
+// Load config dynamically
+async function loadConfig() {
+    const response = await fetch('data/config.json'); 
+    const config = await response.json();
+    return config;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        const username = 'oksanaranneva';
+        const config = await loadConfig();
+        const username = config.livelibUsername;
 
         // Load static data
         const { customPages, bookAnnotations, customDates } = await loadStaticData();
 
         // Load or fetch initial data
         let allBooks, lastUpdated;
-        const stored = loadBooksFromStorage();
+        const stored = loadBooksFromStorage(username); // Pass username
         if (stored) {
             allBooks = stored.allBooks;
             lastUpdated = stored.lastUpdated;
-            console.log('Loaded books from localStorage:', allBooks.length, 'Last updated:', lastUpdated);
+            console.log(`Loaded books for ${username} from localStorage:`, allBooks.length, 'Last updated:', lastUpdated);
         } else {
             allBooks = await fetchLiveLibData(username, bookAnnotations, customPages);
             lastUpdated = new Date().toISOString();
-            saveBooksToStorage(allBooks, lastUpdated);
-            console.log('Fetched initial books from LiveLib:', allBooks.length);
+            saveBooksToStorage(username, allBooks, lastUpdated); // Pass username
+            console.log(`Fetched initial books for ${username} from LiveLib:`, allBooks.length);
         }
 
         // Categorize books
@@ -221,7 +229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 allBooks = await fetchLiveLibData(username, bookAnnotations, customPages);
                 lastUpdated = new Date().toISOString();
-                saveBooksToStorage(allBooks, lastUpdated);
+                saveBooksToStorage(username, allBooks, lastUpdated);
 
                 readBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'read');
                 readingBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'currently-reading');
