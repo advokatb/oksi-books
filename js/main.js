@@ -59,15 +59,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.warn('Failed to load custom_dates.json:', e);
         }
 
-        // Load or fetch initial data
+        // Load or fetch initial data with timestamp
         let allBooks;
-        const storedBooks = localStorage.getItem('livelibBooks');
-        if (storedBooks) {
-            allBooks = JSON.parse(storedBooks);
-            console.log('Loaded books from localStorage:', allBooks.length);
+        let lastUpdated;
+        const storedData = localStorage.getItem('livelibBooks');
+        if (storedData) {
+            const data = JSON.parse(storedData);
+            allBooks = data.books;
+            lastUpdated = data.timestamp || null;
+            console.log('Loaded books from localStorage:', allBooks.length, 'Last updated:', lastUpdated);
         } else {
             allBooks = await fetchLiveLibData();
-            localStorage.setItem('livelibBooks', JSON.stringify(allBooks));
+            lastUpdated = new Date().toISOString();
+            localStorage.setItem('livelibBooks', JSON.stringify({ books: allBooks, timestamp: lastUpdated }));
             console.log('Fetched initial books from LiveLib:', allBooks.length);
         }
 
@@ -224,12 +228,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             books.renderGenreChart()
         ]);
 
-        // Refresh button
+        // Refresh button with timestamp
         const container = document.querySelector('.container') || document.body;
+        const refreshContainer = document.createElement('div');
+        refreshContainer.className = 'refresh-container mt-6 text-center';
         const refreshButton = document.createElement('button');
         refreshButton.textContent = 'Обновить данные с LiveLib';
-        refreshButton.className = 'btn btn-primary mt-3';
-        container.prepend(refreshButton);
+        refreshButton.className = 'btn bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-lg';
+        const timestampDisplay = document.createElement('p');
+        timestampDisplay.className = 'text-gray-500 text-sm mt-2';
+        timestampDisplay.textContent = lastUpdated
+            ? `Последнее обновление: ${new Date(lastUpdated).toLocaleString('ru-RU')}`
+            : 'Данные еще не обновлялись';
+        refreshContainer.appendChild(refreshButton);
+        refreshContainer.appendChild(timestampDisplay);
+        container.appendChild(refreshContainer); // Place at bottom by default
 
         refreshButton.addEventListener('click', async () => {
             try {
@@ -251,17 +264,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="series-row">${Array(3).fill('').map((_, i) => `<div class="series-book" style="left: ${i * 60}px;"><div class="skeleton" style="width: 80px; height: 120px;"></div></div>`).join('')}</div>
                     </div>
                 `).join('');
-                document.getElementById('challenge-progress').parentElement.parentElement.innerHTML = `
-                    <h2 class="text-2xl font-semibold text-gray-700 mb-4">Чтение 2025: Challenge</h2>
-                    <div class="flex items-center mb-4"><div class="skeleton w-24 h-12 mr-4"></div><div><div class="skeleton skeleton-text w-3/4"></div><div class="skeleton skeleton-text w-1/2"></div></div></div>
-                    <div class="skeleton w-full h-2.5 rounded-full"></div><div class="skeleton skeleton-text w-1/4 mt-2 mx-auto"></div>
-                `;
+                if (challengeContainer) {
+                    challengeContainer.innerHTML = `
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4">Чтение 2025: Challenge</h2>
+                        <div class="flex items-center mb-4"><div class="skeleton w-24 h-12 mr-4"></div><div><div class="skeleton skeleton-text w-3/4"></div><div class="skeleton skeleton-text w-1/2"></div></div></div>
+                        <div class="skeleton w-full h-2.5 rounded-full"></div><div class="skeleton skeleton-text w-1/4 mt-2 mx-auto"></div>
+                    `;
+                }
                 document.getElementById('book-records').innerHTML = '<div class="skeleton skeleton-text w-3/4 mb-2"></div><div class="skeleton skeleton-text w-3/4"></div>';
                 document.getElementById('reading-stats').innerHTML = '<div class="skeleton skeleton-text w-3/4 mb-2"></div><div class="skeleton skeleton-text w-3/4"></div>';
                 Object.values(chartContainers).forEach(container => container.classList.add('skeleton'));
 
                 allBooks = await fetchLiveLibData();
-                localStorage.setItem('livelibBooks', JSON.stringify(allBooks));
+                lastUpdated = new Date().toISOString();
+                localStorage.setItem('livelibBooks', JSON.stringify({ books: allBooks, timestamp: lastUpdated }));
 
                 // Update collections
                 readBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'read');
@@ -324,7 +340,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 seriesShelfContainer.innerHTML = '';
                 await books.renderSeriesShelf('series-shelf');
 
-                // Inside refreshButton.addEventListener
                 const refreshedBooks2025 = readBooks.filter(b => b['Date Read']?.startsWith('2025')).length;
                 const refreshedProgressPercent = Math.min((refreshedBooks2025 / challengeGoal) * 100, 100).toFixed(0);
                 if (challengeContainer) {
@@ -375,6 +390,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         genreFilter.appendChild(option);
                     });
                 }
+
+                // Update timestamp display
+                timestampDisplay.textContent = `Последнее обновление: ${new Date(lastUpdated).toLocaleString('ru-RU')}`;
 
                 alert('Данные успешно обновлены!');
             } catch (error) {

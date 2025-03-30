@@ -447,3 +447,27 @@ select.btn {
         background-position: -200% 0;
     }
 }
+
+
+/* Refresh Container */
+.refresh-container {
+    margin-top: 1.5rem;
+    text-align: center;
+}
+
+/* Mobile positioning */
+@media (max-width: 767px) {
+    .refresh-container {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 90%;
+        max-width: 300px;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.9); /* Slight background for readability */
+        padding: 10px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+}
