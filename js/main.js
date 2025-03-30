@@ -15,26 +15,66 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.warn('Failed to load custom_dates.json:', e);
         }
 
-        let staticStats = { total_books: 0, total_pages: 0, books_2025: 0, series_counts: {}, book_list: [] };
-        try {
-            const statsResponse = await fetch('/reading_stats.json');
-            staticStats = await statsResponse.json();
-        } catch (e) {
-            console.warn('Failed to load reading_stats.json:', e);
-            document.getElementById('book-list').innerHTML = '<p class="text-gray-600">Не удалось загрузить данные</p>';
+        // Function to fetch LiveLib data
+        const fetchLiveLibData = async () => {
+            const shelves = [
+                { pagename: 'read', elementId: 'read-books' },
+                { pagename: 'reading', elementId: 'last-read-book' },
+                { pagename: 'wish', elementId: 'future-books-tab' }
+            ];
+            const includeColumns = ['title', 'authors', 'readDate', 'ratingUser', 'isbn', 'genres', 'series', 'bookHref', 'coverHref'];
+            const updatedBooks = [];
+
+            for (const shelf of shelves) {
+                const url = new URL('https://script.google.com/macros/s/AKfycbxzTdo297yeLns95JN_h8xCKfIKNNvqKg8bk5NXrEOxeRD-gbQAqgxiB18IDDG2WbOO/exec');
+                url.searchParams.append('username', username);
+                url.searchParams.append('pagename', shelf.pagename);
+                url.searchParams.append('includeColumns', includeColumns.join(','));
+
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`Ошибка загрузки ${shelf.pagename}: ${response.status}`);
+
+                const data = await response.json();
+                if (!data.bookArray || !Array.isArray(data.bookArray)) {
+                    throw new Error(`Некорректный формат данных для ${shelf.pagename}`);
+                }
+
+                const booksData = data.bookArray.map(book => ({
+                    ...book,
+                    'Exclusive Shelf': shelf.pagename === 'reading' ? 'currently-reading' : (shelf.pagename === 'wish' ? 'to-read' : 'read'),
+                    'Book Id': book.bookHref.split('/').pop(),
+                    'Annotation': bookAnnotations[book.bookHref.split('/').pop()] || book.annotation || 'Нет аннотации',
+                    'Authors': Array.isArray(book.authors) ? book.authors.map(a => a.name).join(', ') : 'Неизвестный автор',
+                    'Genres': Array.isArray(book.genres) ? book.genres.map(g => g.name) : [],
+                    'Series': book.details?.series || null,
+                    'My Rating': parseFloat(book.rating?.user) || 0,
+                    'Cover URL': book.coverHref || 'https://placehold.co/100x150?text=Нет+обложки',
+                    'Title': book.title,
+                    'ISBN': book.details?.isbn || 'Не указан',
+                    'Date Read': book.readDate ? parseDate(book.readDate) : null,
+                    'Number of Pages': customPages[book.title] || book.details?.pages || 0
+                }));
+                updatedBooks.push(...booksData);
+            }
+            return updatedBooks;
+        };
+
+        // Load or fetch initial data
+        let allBooks;
+        const storedBooks = localStorage.getItem('livelibBooks');
+        if (storedBooks) {
+            allBooks = JSON.parse(storedBooks);
+            console.log('Loaded books from localStorage:', allBooks.length);
+        } else {
+            allBooks = await fetchLiveLibData();
+            localStorage.setItem('livelibBooks', JSON.stringify(allBooks));
+            console.log('Fetched initial books from LiveLib:', allBooks.length);
         }
 
-        // Initial book data from static stats
-        let readBooks = staticStats.book_list?.filter(b => b['Exclusive Shelf'] === 'read') || [];
-        let readingBooks = staticStats.book_list?.filter(b => b['Exclusive Shelf'] === 'currently-reading') || [];
-        let wishBooks = staticStats.book_list?.filter(b => b['Exclusive Shelf'] === 'to-read') || [];
-        let allBooks = [...readBooks, ...readingBooks, ...wishBooks];
-
-        // Enhance with annotations and pages
-        allBooks.forEach(book => {
-            book['Annotation'] = bookAnnotations[book['Book Id']] || book['Annotation'] || 'Нет аннотации';
-            book['Number of Pages'] = customPages[book.Title] || book['Number of Pages'] || 0;
-        });
+        // Categorize books
+        let readBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'read');
+        let readingBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'currently-reading');
+        let wishBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'to-read');
 
         const books = new BookCollection(readBooks, customDates);
         const currentBooks = new BookCollection(readingBooks, customDates);
@@ -44,7 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const genreFilter = document.getElementById('genre-filter');
         if (genreFilter) {
             const uniqueGenres = [...new Set(allBooks.flatMap(book => book.Genres || []))].sort();
-            console.log('Initial unique genres:', uniqueGenres); // Debug
+            console.log('Unique genres:', uniqueGenres);
             uniqueGenres.forEach(genre => {
                 const option = document.createElement('option');
                 option.value = genre;
@@ -71,11 +111,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         const mostProlificAuthorDiv = await books.renderMostProlificAuthor();
         document.getElementById('most-prolific-author').appendChild(mostProlificAuthorDiv);
 
-        // Render charts asynchronously with Promise.all for performance
+        // Render charts with loading state
+        const chartContainers = {
+            timelineChart: document.querySelector('#timelineChart'),
+            ratingChart: document.querySelector('#ratingChart'),
+            genreChart: document.querySelector('#genreChart')
+        };
+        // Object.values(chartContainers).forEach(container => {
+        //     if (container) container.innerHTML = '<p class="text-gray-600">Загрузка графика...</p>';
+        // });
+
         await Promise.all([
-            books.renderTimelineChart(),
-            books.renderRatingChart(),
-            books.renderGenreChart()
+            books.renderTimelineChart().then(() => console.log('Timeline chart rendered')),
+            books.renderRatingChart().then(() => console.log('Rating chart rendered')),
+            books.renderGenreChart().then(() => console.log('Genre chart rendered'))
         ]);
 
         books.currentPage = 0;
@@ -93,30 +142,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Reading challenge stats
         const challengeGoal = 50;
-        const initialBooks2025 = readBooks.filter(b => b['Date Read']?.startsWith('2025')).length || staticStats.books_2025;
-        const progressPercent = Math.min((initialBooks2025 / challengeGoal) * 100, 100).toFixed(0);
-        document.getElementById('challenge-progress').innerHTML = `<strong>${initialBooks2025} из ${challengeGoal} книг прочитано</strong>`;
+        const books2025 = readBooks.filter(b => b['Date Read']?.startsWith('2025')).length;
+        const progressPercent = Math.min((books2025 / challengeGoal) * 100, 100).toFixed(0);
+        document.getElementById('challenge-progress').innerHTML = `<strong>${books2025} из ${challengeGoal} книг прочитано</strong>`;
         document.getElementById('challenge-days').textContent = `Осталось ${Math.ceil((new Date('2025-12-31') - new Date()) / (1000 * 60 * 60 * 24))} дней`;
         document.getElementById('challenge-bar').style.width = `${progressPercent}%`;
         document.getElementById('challenge-percent').textContent = `${progressPercent}%`;
 
-        // Total stats with fallback
+        // Total stats
         const totalContainer = document.querySelector('#total-book')?.nextElementSibling;
         if (totalContainer) {
-            totalContainer.querySelector('p:nth-child(1)').textContent = getBookDeclension(staticStats.total_books || 0);
-            totalContainer.querySelector('p:nth-child(2)').textContent = `${(staticStats.total_pages || 0).toLocaleString('ru-RU')} страниц`;
-            totalContainer.querySelector('p:nth-child(3) span').textContent = initialBooks2025;
+            totalContainer.querySelector('p:nth-child(1)').textContent = getBookDeclension(readBooks.length);
+            totalContainer.querySelector('p:nth-child(2)').textContent = `${readBooks.reduce((sum, b) => sum + (b['Number of Pages'] || 0), 0).toLocaleString('ru-RU')} страниц`;
+            totalContainer.querySelector('p:nth-child(3) span').textContent = books2025;
         }
 
         // Книжные рекорды
-        const longestBook = readBooks.length ? readBooks.reduce((a, b) => (parseInt(b['Number of Pages'], 10) || 0) > (parseInt(a['Number of Pages'], 10) || 0) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
-        const shortestBook = readBooks.length ? readBooks.reduce((a, b) => (parseInt(b['Number of Pages'], 10) || Infinity) < (parseInt(a['Number of Pages'], 10) || Infinity) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
+        const longestBook = readBooks.length ? readBooks.reduce((a, b) => (b['Number of Pages'] || 0) > (a['Number of Pages'] || 0) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
+        const shortestBook = readBooks.length ? readBooks.reduce((a, b) => (b['Number of Pages'] || Infinity) < (a['Number of Pages'] || Infinity) ? b : a) : { Title: 'N/A', 'Number of Pages': 0 };
         document.getElementById('longest-book').textContent = `${longestBook.Title} (${longestBook['Number of Pages']} страниц)`;
         document.getElementById('shortest-book').textContent = `${shortestBook.Title} (${shortestBook['Number of Pages']} страниц)`;
 
         // Average books per month
         const months = new Set(readBooks.map(b => b['Date Read']?.slice(0, 7)).filter(Boolean));
-        console.log('Initial months with reads:', [...months]); // Debug
         const avgBooksPerMonth = months.size ? (readBooks.length / months.size).toFixed(1) : 0;
         document.getElementById('average-books-per-month').textContent = `${avgBooksPerMonth} книг`;
 
@@ -135,7 +183,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // Total series count
-        document.getElementById('total-series').textContent = Object.keys(staticStats.series_counts || {}).length;
+        const seriesCounts = {};
+        readBooks.forEach(b => {
+            if (b.Series) seriesCounts[b.Series] = (seriesCounts[b.Series] || 0) + 1;
+        });
+        document.getElementById('total-series').textContent = Object.keys(seriesCounts).length;
 
         // Refresh button
         const container = document.querySelector('.container') || document.body;
@@ -149,51 +201,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 refreshButton.disabled = true;
                 refreshButton.textContent = 'Загрузка...';
 
-                const shelves = [
-                    { pagename: 'read', elementId: 'read-books' },
-                    { pagename: 'reading', elementId: 'last-read-book' },
-                    { pagename: 'wish', elementId: 'future-books-tab' }
-                ];
-                const includeColumns = ['title', 'authors', 'readDate', 'ratingUser', 'isbn', 'genres', 'series', 'bookHref', 'coverHref'];
-
-                const updatedBooks = [];
-                for (const shelf of shelves) {
-                    const url = new URL('https://script.google.com/macros/s/AKfycbxzTdo297yeLns95JN_h8xCKfIKNNvqKg8bk5NXrEOxeRD-gbQAqgxiB18IDDG2WbOO/exec');
-                    url.searchParams.append('username', username);
-                    url.searchParams.append('pagename', shelf.pagename);
-                    url.searchParams.append('includeColumns', includeColumns.join(','));
-
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`Ошибка загрузки ${shelf.pagename}: ${response.status}`);
-
-                    const data = await response.json();
-                    if (!data.bookArray || !Array.isArray(data.bookArray)) {
-                        throw new Error(`Некорректный формат данных для ${shelf.pagename}`);
-                    }
-
-                    const booksData = data.bookArray.map(book => ({
-                        ...book,
-                        'Exclusive Shelf': shelf.pagename === 'reading' ? 'currently-reading' : (shelf.pagename === 'wish' ? 'to-read' : 'read'),
-                        'Book Id': book.bookHref.split('/').pop(),
-                        'Annotation': bookAnnotations[book.bookHref.split('/').pop()] || book.annotation || 'Нет аннотации',
-                        'Authors': Array.isArray(book.authors) ? book.authors.map(a => a.name).join(', ') : 'Неизвестный автор',
-                        'Genres': Array.isArray(book.genres) ? book.genres.map(g => g.name) : [],
-                        'Series': book.details?.series || null,
-                        'My Rating': parseFloat(book.rating?.user) || 0,
-                        'Cover URL': book.coverHref || 'https://placehold.co/100x150?text=Нет+обложки',
-                        'Title': book.title,
-                        'ISBN': book.details?.isbn || 'Не указан',
-                        'Date Read': book.readDate ? parseDate(book.readDate) : null,
-                        'Number of Pages': customPages[book.title] || book.details?.pages || 0
-                    }));
-                    updatedBooks.push(...booksData);
-                }
+                allBooks = await fetchLiveLibData();
+                localStorage.setItem('livelibBooks', JSON.stringify(allBooks));
 
                 // Update collections
-                readBooks = updatedBooks.filter(b => b['Exclusive Shelf'] === 'read');
-                readingBooks = updatedBooks.filter(b => b['Exclusive Shelf'] === 'currently-reading');
-                wishBooks = updatedBooks.filter(b => b['Exclusive Shelf'] === 'to-read');
-                allBooks = [...readBooks, ...readingBooks, ...wishBooks];
+                readBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'read');
+                readingBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'currently-reading');
+                wishBooks = allBooks.filter(b => b['Exclusive Shelf'] === 'to-read');
 
                 const newBooks = new BookCollection(readBooks, customDates);
                 books.models = newBooks.models;
@@ -227,6 +241,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const newMostProlificAuthorDiv = await books.renderMostProlificAuthor();
                 document.getElementById('most-prolific-author').appendChild(newMostProlificAuthorDiv);
 
+                Object.values(chartContainers).forEach(container => {
+                    if (container) container.innerHTML = '<p class="text-gray-600">Загрузка графика...</p>';
+                });
                 await Promise.all([
                     books.renderTimelineChart(),
                     books.renderRatingChart(),
@@ -249,10 +266,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const totalBooks = readBooks.length;
                 const books2025 = readBooks.filter(b => b['Date Read']?.startsWith('2025')).length;
                 const totalPages = readBooks.reduce((sum, b) => sum + (b['Number of Pages'] || 0), 0);
-                const seriesCounts = {};
-                readBooks.forEach(b => {
-                    if (b.Series) seriesCounts[b.Series] = (seriesCounts[b.Series] || 0) + 1;
-                });
 
                 document.getElementById('challenge-progress').innerHTML = `<strong>${books2025} из ${challengeGoal} книг прочитано</strong>`;
                 document.getElementById('challenge-bar').style.width = `${Math.min((books2025 / challengeGoal) * 100, 100).toFixed(0)}%`;
@@ -279,11 +292,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     totalBookImage.alt = refreshedRandomBook.Title;
                 }
 
-                // Refresh genre filter
                 if (genreFilter) {
                     genreFilter.innerHTML = '<option value="">Все жанры</option>';
                     const refreshedGenres = [...new Set(allBooks.flatMap(book => book.Genres || []))].sort();
-                    console.log('Refreshed unique genres:', refreshedGenres); // Debug
+                    console.log('Refreshed unique genres:', refreshedGenres);
                     refreshedGenres.forEach(genre => {
                         const option = document.createElement('option');
                         option.value = genre;
