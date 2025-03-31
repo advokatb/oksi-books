@@ -23,7 +23,7 @@ jobs:
 
       - name: Run Python script for data generation
         run: |
-          export LIVELIB_USERNAME='oksanaranneva'
+          export LIVELIB_USERNAME='OksanaRanneva'
           python process_livelib.py
 
       # - name: Fetch author images

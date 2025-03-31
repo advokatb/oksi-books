@@ -31,7 +31,7 @@ def load_custom_pages(filepath='data/custom_pages.json'):
             return json.load(file)
     return {}
 
-def process_livelib_files(username="oksanaranneva"):
+def process_livelib_files(username="OksanaRanneva"):
     export_dir = 'export'
     os.makedirs(export_dir, exist_ok=True)
 
@@ -99,5 +99,5 @@ def process_livelib_files(username="oksanaranneva"):
         json.dump(stats, f, ensure_ascii=False, indent=2)
 
 if __name__ == '__main__':
-    username = os.getenv('LIVELIB_USERNAME', 'oksanaranneva')
+    username = os.getenv('LIVELIB_USERNAME', 'OksanaRanneva')
     process_livelib_files(username)

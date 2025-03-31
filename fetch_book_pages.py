@@ -151,8 +151,8 @@ if __name__ == '__main__':
     if not username and os.path.exists('config.json'):
         with open('data', 'config.json', 'r', encoding='utf-8') as f:
             config = json.load(f)
-            username = config.get('livelibUsername', 'oksanaranneva')
+            username = config.get('livelibUsername', 'OksanaRanneva')
     if not username:
-        username = 'oksanaranneva'  # Final default
+        username = 'OksanaRanneva'  # Final default
 
     process_book_pages(username)
