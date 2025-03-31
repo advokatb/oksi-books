@@ -21,10 +21,10 @@ jobs:
       - name: Install dependencies
         run: pip install pandas requests beautifulsoup4
 
-      - name: Run Python script for data generation
-        run: |
-          export LIVELIB_USERNAME='OksanaRanneva'
-          python process_livelib.py
+      # - name: Run Python script for data generation
+      #   run: |
+      #     export LIVELIB_USERNAME='OksanaRanneva'
+      #     python process_livelib.py
 
       # - name: Fetch author images
       #   run: python fetch_author_images.py
