@@ -2,6 +2,7 @@ import json
 import os
 import requests
 import time
+import re
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -62,7 +63,7 @@ def save_custom_pages(data, filepath='data/custom_pages.json'):
 def fetch_page_count(book_url):
     """
     Scrape the number of pages from a LiveLib book page using Selenium.
-    Looks for 'страниц:' and extracts the number immediately after it.
+    Looks for various page-related keywords and extracts the first number around them.
     Returns None if not found or invalid.
     """
     options = Options()
@@ -75,13 +76,11 @@ def fetch_page_count(book_url):
         time.sleep(2)  # Wait for page to load
         soup = BeautifulSoup(driver.page_source, 'html.parser')
 
-        # Find ul.book-page__info.bc-info
         info_section = soup.select_one('ul.book-page__info.bc-info')
         if not info_section:
             print(f"No book-page__info found at {book_url}")
             return None
 
-        # Look for 'Дополнительная информация об издании' section
         for li in info_section.select('li.bc-info__item'):
             summary = li.select_one('summary.bc-info__title')
             if summary and 'Дополнительная информация об издании' in summary.get_text(strip=True):
@@ -90,19 +89,28 @@ def fetch_page_count(book_url):
                     for p_tag in content_div.select('p.bc-info__txt'):
                         text = p_tag.get_text(strip=True).lower()
                         print(f"Parsing text in 'Дополнительная информация': '{text}'")
-                        if 'страниц:' in text:
-                            parts = text.split('страниц:')
-                            if len(parts) > 1:
-                                next_part = parts[1].strip()
-                                words = next_part.split()
-                                if words and words[0].isdigit():
-                                    return int(words[0])
-                                print(f"No valid number found after 'страниц:' in '{text}' at {book_url}")
-                                return None
-                    print(f"No 'страниц:' found in 'Дополнительная информация' at {book_url}")
+                        
+                        # Define keywords to look for
+                        keywords = ['страниц:', 'страниц', 'стр.', 'количество страниц:']
+                        for keyword in keywords:
+                            if keyword in text:
+                                # Look for a number immediately before, after, or near the keyword
+                                match = re.search(rf'(?:\d+\s*{keyword})|(?:{keyword}\s*\d+)|(\d+{keyword})', text)
+                                if match:
+                                    # Extract the number from the match
+                                    number_match = re.search(r'\d+', match.group(0))
+                                    if number_match:
+                                        return int(number_match.group(0))
+                                    print(f"No valid number extracted from match '{match.group(0)}' in '{text}' at {book_url}")
+                                print(f"No valid number found near '{keyword}' in '{text}' at {book_url}")
+                                break
+                        else:
+                            print(f"No page-related keywords found in '{text}' at {book_url}")
+
+                    print(f"No page count found in 'Дополнительная информация' at {book_url}")
                     return None
 
-        print(f"No 'Дополнительная информация' section with 'страниц:' at {book_url}")
+        print(f"No 'Дополнительная информация' section with page count at {book_url}")
         return None
 
     except Exception as e:
@@ -111,48 +119,53 @@ def fetch_page_count(book_url):
     finally:
         driver.quit()
 
-def process_book_pages(username):
+def process_book_pages(username, batch_size=10):
     """
-    Fetch books, check custom_pages.json, scrape page counts, and update JSON.
-    Only adds books with valid page counts.
+    Fetch books, check custom_pages.json, scrape page counts, and update JSON in batches.
+    Processes 10-15 items at a time with a 5-minute pause between batches.
     """
     custom_pages = load_custom_pages()
     books = fetch_livelib_books(username)
     print(f"Fetched {len(books)} books from LiveLib")
 
-    for book in books:
-        title = book.get('title')
-        book_url = book.get('bookHref')
+    books_to_process = [(book['title'], book['bookHref']) for book in books 
+                        if book.get('title') and book.get('bookHref') and book['title'] not in custom_pages]
+    print(f"Found {len(books_to_process)} books to process")
 
-        if not title or not book_url:
-            print(f"Skipping book with missing title or URL: {book}")
-            continue
+    if not books_to_process:
+        print("No new books to process")
+        return
 
-        if title in custom_pages:
-            print(f"Skipping {title} (already in custom_pages.json)")
-            continue
+    for i in range(0, len(books_to_process), batch_size):
+        batch = books_to_process[i:i + batch_size]
+        print(f"Processing batch {i // batch_size + 1} ({len(batch)} books)")
 
-        print(f"Fetching page count for {title} from {book_url}")
-        page_count = fetch_page_count(book_url)
-        if page_count is not None:
-            custom_pages[title] = page_count
-            print(f"Added {title}: {page_count} pages")
-        else:
-            print(f"Skipping {title} (no valid page count found)")
+        for title, book_url in batch:
+            print(f"Fetching page count for {title} from {book_url}")
+            page_count = fetch_page_count(book_url)
+            if page_count is not None:
+                custom_pages[title] = page_count
+                print(f"Added {title}: {page_count} pages")
+            else:
+                print(f"Skipping {title} (no valid page count found)")
+            time.sleep(5)
 
-        time.sleep(5)
+        save_custom_pages(custom_pages)
+        print(f"Saved progress after batch {i // batch_size + 1}")
 
-    save_custom_pages(custom_pages)
+        if i + batch_size < len(books_to_process):
+            print("Pausing for 2 minutes...")
+            time.sleep(120)
+
     print("Updated data/custom_pages.json")
 
 if __name__ == '__main__':
-    # Prefer environment variable, fall back to config.json
     username = os.getenv('LIVELIB_USERNAME')
-    if not username and os.path.exists('config.json'):
-        with open('data', 'config.json', 'r', encoding='utf-8') as f:
+    if not username and os.path.exists('data/config.json'):
+        with open('data/config.json', 'r', encoding='utf-8') as f:
             config = json.load(f)
-            username = config.get('livelibUsername', 'OksanaRanneva')
+            username = config.get('livelibUsername', 'AlyonaRanneva')
     if not username:
-        username = 'OksanaRanneva'  # Final default
+        username = 'AlyonaRanneva'  # Final default
 
     process_book_pages(username)
