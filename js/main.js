@@ -13,6 +13,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         const config = await loadConfig();
         const username = config.livelibUsername;
+        const readingChallengeGoal = config.readingChallengeGoal || 50; 
+        const currentYear = new Date().getFullYear(); 
 
         // Load static data
         const { customPages, bookAnnotations, customDates } = await loadStaticData();
@@ -126,18 +128,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         seriesShelfContainer.innerHTML = '';
         await books.renderSeriesShelf('series-shelf');
 
-        const challengeGoal = 50;
-        const books2025 = readBooks.filter(b => b['Date Read']?.startsWith('2025')).length;
-        const progressPercent = Math.min((books2025 / challengeGoal) * 100, 100).toFixed(0);
+        // Challenge Block
+        const booksThisYear = readBooks.filter(b => b['Date Read']?.startsWith(currentYear.toString())).length;
+        const progressPercent = Math.min((booksThisYear / readingChallengeGoal) * 100, 100).toFixed(0);
         const challengeContainer = document.getElementById('challenge-container');
         if (challengeContainer) {
             challengeContainer.innerHTML = `
-                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Чтение 2025: Challenge</h2>
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Чтение ${currentYear}: Challenge</h2>
                 <div class="flex items-center mb-4">
-                    <img src="https://m.media-amazon.com/images/G/01/RC/2025ReadingChallengeBadgeLinkedKindle.png" alt="2025 Reading Challenge Badge" class="w-24 h-auto mr-4">
+                    <img src="assets/images/reading-challenge.jpg" alt="${currentYear} Reading Challenge Badge" class="w-24 h-auto mr-4">
                     <div>
-                        <p id="challenge-progress" class="text-gray-600"><strong>${books2025} из ${challengeGoal} книг прочитано</strong></p>
-                        <p id="challenge-days" class="text-gray-500 text-sm">Осталось ${Math.ceil((new Date('2025-12-31') - new Date()) / (1000 * 60 * 60 * 24))} дней</p>
+                        <p id="challenge-progress" class="text-gray-600"><strong>${booksThisYear} из ${readingChallengeGoal} книг прочитано</strong></p>
+                        <p id="challenge-days" class="text-gray-500 text-sm">Осталось ${Math.ceil((new Date(`${currentYear}-12-31`) - new Date()) / (1000 * 60 * 60 * 24))} дней</p>
                     </div>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-2.5">
@@ -194,6 +196,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <span><strong>Страниц в месяц:</strong> <span class="font-semibold text-indigo-600">${avgPagesPerMonth.toLocaleString('ru-RU')}</span></span>
             </p>
         `;
+
+        // New LiveLib Badges
+        const livelibChallengeBadge = document.getElementById('livelib-challenge-badge');
+        if (livelibChallengeBadge) {
+            livelibChallengeBadge.innerHTML = `
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4 text-center">Челлендж на LiveLib</h2>
+                <div class="flex justify-center"><a target="_blank" rel="nofollow" title="LiveLib" href="https://www.livelib.ru/challenge/${currentYear}/reader/${username}"><img alt="LiveLib" src="https://u.livelib.ru/reader/${username}/challenge${currentYear}.png" style="border: 0;"></a></div>
+            `;
+        }
+
+        const livelibProfileBadge = document.getElementById('livelib-profile-badge');
+        if (livelibProfileBadge) {
+            livelibProfileBadge.innerHTML = `
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4 text-center">Профиль на LiveLib</h2>
+                <div class="flex justify-center"><a target="_blank" rel="nofollow" title="LiveLib" href="https://www.livelib.ru/reader/${username}"><img alt="LiveLib" src="https://u.livelib.ru/reader/${username}/informer-i3.png" style="border: 0;"></a></div>
+            `;
+        }
 
         const chartContainers = {
             timelineChart: document.querySelector('#timelineChart'),
@@ -320,16 +339,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 seriesShelfContainer.innerHTML = '';
                 await books.renderSeriesShelf('series-shelf');
 
-                const refreshedBooks2025 = readBooks.filter(b => b['Date Read']?.startsWith('2025')).length;
-                const refreshedProgressPercent = Math.min((refreshedBooks2025 / challengeGoal) * 100, 100).toFixed(0);
+                const refreshedBooksThisYear = readBooks.filter(b => b['Date Read']?.startsWith(currentYear.toString())).length;
+                const refreshedProgressPercent = Math.min((refreshedBooksThisYear / readingChallengeGoal) * 100, 100).toFixed(0);
                 if (challengeContainer) {
                     challengeContainer.innerHTML = `
-                        <h2 class="text-2xl font-semibold text-gray-700 mb-4">Чтение 2025: Challenge</h2>
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4">Чтение ${currentYear}: Challenge</h2>
                         <div class="flex items-center mb-4">
-                            <img src="https://m.media-amazon.com/images/G/01/RC/2025ReadingChallengeBadgeLinkedKindle.png" alt="2025 Reading Challenge Badge" class="w-24 h-auto mr-4">
+                            <img src="assets/images/reading-challenge.jpg" alt="${currentYear} Reading Challenge Badge" class="w-24 h-auto mr-4">
                             <div>
-                                <p id="challenge-progress" class="text-gray-600"><strong>${refreshedBooks2025} из ${challengeGoal} книг прочитано</strong></p>
-                                <p id="challenge-days" class="text-gray-500 text-sm">Осталось ${Math.ceil((new Date('2025-12-31') - new Date()) / (1000 * 60 * 60 * 24))} дней</p>
+                                <p id="challenge-progress" class="text-gray-600"><strong>${refreshedBooksThisYear} из ${readingChallengeGoal} книг прочитано</strong></p>
+                                <p id="challenge-days" class="text-gray-500 text-sm">Осталось ${Math.ceil((new Date(`${currentYear}-12-31`) - new Date()) / (1000 * 60 * 60 * 24))} дней</p>
                             </div>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2.5">
@@ -398,6 +417,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                 }
 
+                if (livelibChallengeBadge) {
+                    livelibChallengeBadge.innerHTML = `
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4 text-center">Челлендж на LiveLib</h2>
+                        <div class="flex justify-center"><a target="_blank" rel="nofollow" title="LiveLib" href="https://www.livelib.ru/challenge/${currentYear}/reader/${username}"><img alt="LiveLib" src="https://u.livelib.ru/reader/${username}/challenge${currentYear}.png" style="border: 0;"></a></div>
+                    `;
+                }
+        
+                if (livelibProfileBadge) {
+                    livelibProfileBadge.innerHTML = `
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4 text-center">Профиль на LiveLib</h2>
+                        <div class="flex justify-center"><a target="_blank" rel="nofollow" title="LiveLib" href="https://www.livelib.ru/reader/${username}"><img alt="LiveLib" src="https://u.livelib.ru/reader/${username}/informer-i3.png" style="border: 0;"></a></div>
+                    `;
+                }
+                
                 timestampDisplay.textContent = `Последнее обновление: ${new Date(lastUpdated).toLocaleString('ru-RU')}`;
                 alert('Данные успешно обновлены!');
             } catch (error) {
